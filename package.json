@@ -1,0 +1,17 @@
+{
+    "name": "com.coldsnap.utilities",
+    "version": "1.0.0",
+    "displayName": "ColdSnap Utilities",
+    "description": "A collection of reusable Unity scripts and utilities.",
+    "unity": "6000",
+    "author": {
+        "name": "Nathan De Castro",
+        "email": "decastronathan@gmail.com",
+        "url": "https://nathandecastro.com"
+    },
+    "keywords": [
+        "utilities",
+        "tools",
+        "runtime"
+    ]
+}
