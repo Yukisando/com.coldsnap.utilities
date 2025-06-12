@@ -3,7 +3,7 @@
     "version": "1.0.0",
     "displayName": "ColdSnap Utilities",
     "description": "A collection of reusable Unity scripts and utilities.",
-    "unity": "6000",
+    "unity": "2020.3",
     "author": {
         "name": "Nathan De Castro",
         "email": "decastronathan@gmail.com",
