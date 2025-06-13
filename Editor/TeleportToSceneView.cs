@@ -19,16 +19,16 @@ public class TeleportPlayerOnPlay
         };
     }
 
-    [MenuItem("Tools/Toggle Teleport Player On Play")]
+    [MenuItem("ColdSnap/Toggle Teleport Player On Play")]
     static void ToggleTeleportOnPlay() {
         isTeleportEnabled = !isTeleportEnabled;
         EditorPrefs.SetBool("TeleportPlayerOnPlay_Enabled", isTeleportEnabled);
         Debug.Log(isTeleportEnabled ? "Teleport on Play enabled" : "Teleport on Play disabled");
     }
 
-    [MenuItem("Tools/Toggle Teleport Player On Play", true)]
+    [MenuItem("ColdSnap/Toggle Teleport Player On Play", true)]
     static bool ToggleTeleportOnPlayValidate() {
-        Menu.SetChecked("Tools/Toggle Teleport Player On Play", isTeleportEnabled);
+        Menu.SetChecked("ColdSnap/Toggle Teleport Player On Play", isTeleportEnabled);
         return true;
     }
 

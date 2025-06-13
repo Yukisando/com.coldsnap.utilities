@@ -11,7 +11,7 @@ public class GitCommandsMenu : EditorWindow
 {
     string commitMessage = "";
 
-    [MenuItem("Git/Quick Commit %#s")] // Ctrl+Shift+S
+    [MenuItem("ColdSnap/Git/Quick Commit %#s")] // Ctrl+Shift+S
     public static void ShowWindow() {
         var window = GetWindow<GitCommandsMenu>("Git Commit");
         window.minSize = new Vector2(400, 150);
