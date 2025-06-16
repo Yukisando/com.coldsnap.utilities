@@ -30,7 +30,7 @@ public class PlatformBuilder : EditorWindow
 
     #region Menu Items
 
-    [MenuItem("ColdSnap/Build Game &#B", priority = 0)]
+    [MenuItem("ColdSnap/Build/Build Game &#B", priority = 0)]
     public static void ShowBuildWindow() {
         var window = GetWindow<PlatformBuilder>(true, "Build Game", true);
         window.minSize = new Vector2(350, 280);
@@ -39,7 +39,7 @@ public class PlatformBuilder : EditorWindow
         window.ShowUtility();
     }
 
-    [MenuItem("ColdSnap/Open Build Folder", priority = 100)]
+    [MenuItem("ColdSnap/Build/Open Build Folder", priority = 100)]
     public static void OpenBuildFolderMenu() {
         OpenBuildLocation("./Builds/");
     }

@@ -77,7 +77,7 @@ public class GitCommandsMenu : EditorWindow
         process.StartInfo.Arguments = arguments;
         process.StartInfo.WorkingDirectory = projectPath;
         process.StartInfo.CreateNoWindow = true;
-        process.StartInfo.UseShellExecute = false;
+        process.StartInfo.UseShellExecute = true;
         process.StartInfo.RedirectStandardOutput = true;
         process.StartInfo.RedirectStandardError = true;
 
