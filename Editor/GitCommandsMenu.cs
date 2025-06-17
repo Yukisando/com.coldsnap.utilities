@@ -78,18 +78,12 @@ public class GitCommandsMenu : EditorWindow
         process.StartInfo.WorkingDirectory = projectPath;
         process.StartInfo.CreateNoWindow = true;
         process.StartInfo.UseShellExecute = true;
-        process.StartInfo.RedirectStandardOutput = true;
-        process.StartInfo.RedirectStandardError = true;
 
         process.Start();
-        string output = process.StandardOutput.ReadToEnd();
-        string error = process.StandardError.ReadToEnd();
         process.WaitForExit();
 
         return new GitResult {
             ExitCode = process.ExitCode,
-            Output = output,
-            Error = error,
         };
     }
 }
