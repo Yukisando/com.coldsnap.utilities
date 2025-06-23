@@ -28,29 +28,41 @@ public class GitCommandsMenu : EditorWindow
         GUILayout.BeginHorizontal();
 
         if (GUILayout.Button("Commit + Push", GUILayout.Height(30))) {
-            if (string.IsNullOrWhiteSpace(commitMessage))
+            if (string.IsNullOrWhiteSpace(commitMessage)) {
                 EditorUtility.DisplayDialog("Error", "Commit message cannot be empty.", "OK");
-            else {
-                var addResult = ExecuteGitCommand("add .");
-                if (addResult.ExitCode != 0) {
-                    EditorUtility.DisplayDialog("Git Error", $"git add failed.\nError: {addResult.Error}", "OK");
-                    return;
-                }
-                var commitResult = ExecuteGitCommand($"commit -m \"{commitMessage}\"");
-                if (commitResult.ExitCode != 0) {
-                    EditorUtility.DisplayDialog("Git Error", $"git commit failed.\nError: {commitResult.Error}", "OK");
-                    return;
-                }
-                var pushResult = ExecuteGitCommand("push");
-                if (pushResult.ExitCode != 0) {
-                    EditorUtility.DisplayDialog("Git Error", $"git push failed.\nError: {pushResult.Error}", "OK");
-                    return;
-                }
-                EditorUtility.DisplayDialog("Success", "Git commit and push succeeded.", "OK");
-                Close();
+            } else {
+                // Run git commands in background
+                System.Threading.Tasks.Task.Run(() => {
+                    var addResult = ExecuteGitCommand("add .");
+                    if (addResult.ExitCode != 0) {
+                        EditorApplication.delayCall += () => {
+                            EditorUtility.DisplayDialog("Git Error", $"git add failed.\nError: {addResult.Error}", "OK");
+                        };
+                        return;
+                    }
+                    var commitResult = ExecuteGitCommand($"commit -m \"{commitMessage}\"");
+                    if (commitResult.ExitCode != 0) {
+                        EditorApplication.delayCall += () => {
+                            EditorUtility.DisplayDialog("Git Error", $"git commit failed.\nError: {commitResult.Error}", "OK");
+                        };
+                        return;
+                    }
+                    var pushResult = ExecuteGitCommand("push");
+                    if (pushResult.ExitCode != 0) {
+                        EditorApplication.delayCall += () => {
+                            EditorUtility.DisplayDialog("Git Error", $"git push failed.\nError: {pushResult.Error}", "OK");
+                        };
+                        return;
+                    }
+                    EditorApplication.delayCall += () => {
+                        EditorUtility.DisplayDialog("Success", "Git commit and push succeeded.", "OK");
+                        Close();
+                    };
+                });
             }
         }
 
+        // Always end horizontal group to avoid layout errors
         GUI.backgroundColor = new Color(1f, 0.4f, 0.4f); // light red tint
         if (GUILayout.Button("Discard All Changes", GUILayout.Height(30))) {
             GUI.backgroundColor = Color.white;
