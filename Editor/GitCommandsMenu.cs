@@ -31,10 +31,22 @@ public class GitCommandsMenu : EditorWindow
             if (string.IsNullOrWhiteSpace(commitMessage))
                 EditorUtility.DisplayDialog("Error", "Commit message cannot be empty.", "OK");
             else {
-                ExecuteGitCommandAsync("add .");
-                ExecuteGitCommandAsync($"commit -m \"{commitMessage}\"");
-                ExecuteGitCommandAsync("push");
-                Debug.Log("Git commit and push started in background.");
+                var addResult = ExecuteGitCommand("add .");
+                if (addResult.ExitCode != 0) {
+                    EditorUtility.DisplayDialog("Git Error", $"git add failed.\nError: {addResult.Error}", "OK");
+                    return;
+                }
+                var commitResult = ExecuteGitCommand($"commit -m \"{commitMessage}\"");
+                if (commitResult.ExitCode != 0) {
+                    EditorUtility.DisplayDialog("Git Error", $"git commit failed.\nError: {commitResult.Error}", "OK");
+                    return;
+                }
+                var pushResult = ExecuteGitCommand("push");
+                if (pushResult.ExitCode != 0) {
+                    EditorUtility.DisplayDialog("Git Error", $"git push failed.\nError: {pushResult.Error}", "OK");
+                    return;
+                }
+                EditorUtility.DisplayDialog("Success", "Git commit and push succeeded.", "OK");
                 Close();
             }
         }
