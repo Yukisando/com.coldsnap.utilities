@@ -31,18 +31,11 @@ public class GitCommandsMenu : EditorWindow
             if (string.IsNullOrWhiteSpace(commitMessage))
                 EditorUtility.DisplayDialog("Error", "Commit message cannot be empty.", "OK");
             else {
-                ExecuteGitCommand("add .");
-                ExecuteGitCommand($"commit -m \"{commitMessage}\"");
-                var result = ExecuteGitCommand("push");
-
-                if (result.ExitCode != 0) {
-                    Debug.LogError($"Push failed:\n{result.Error}");
-                    EditorUtility.DisplayDialog("Push Failed", result.Error, "OK");
-                }
-                else {
-                    Debug.Log("Push succeeded.");
-                    Close();
-                }
+                ExecuteGitCommandAsync("add .");
+                ExecuteGitCommandAsync($"commit -m \"{commitMessage}\"");
+                ExecuteGitCommandAsync("push");
+                Debug.Log("Git commit and push started in background.");
+                Close();
             }
         }
 
@@ -85,5 +78,17 @@ public class GitCommandsMenu : EditorWindow
         return new GitResult {
             ExitCode = process.ExitCode,
         };
+    }
+
+    static void ExecuteGitCommandAsync(string arguments) {
+        string projectPath = Application.dataPath.Substring(0, Application.dataPath.Length - "/Assets".Length);
+        var process = new Process();
+        process.StartInfo.FileName = "git";
+        process.StartInfo.Arguments = arguments;
+        process.StartInfo.WorkingDirectory = projectPath;
+        process.StartInfo.CreateNoWindow = true;
+        process.StartInfo.UseShellExecute = true;
+        process.Start();
+        // Do not wait for exit; run in background
     }
 }
