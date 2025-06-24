@@ -27,6 +27,9 @@ public class GitCommandsMenu : EditorWindow
         GUILayout.Space(10);
         GUILayout.BeginHorizontal();
 
+        // Disable the button if the commit message is empty or whitespace
+        bool canCommit = !string.IsNullOrWhiteSpace(commitMessage);
+        GUI.enabled = canCommit;
         if (GUILayout.Button("Commit + Push", GUILayout.Height(30))) {
             if (string.IsNullOrWhiteSpace(commitMessage)) {
                 EditorUtility.DisplayDialog("Error", "Commit message cannot be empty.", "OK");
@@ -54,13 +57,15 @@ public class GitCommandsMenu : EditorWindow
                         };
                         return;
                     }
+                    // Log success and close window
                     EditorApplication.delayCall += () => {
-                        EditorUtility.DisplayDialog("Success", "Git commit and push succeeded.", "OK");
+                        Debug.Log("Git commit and push succeeded.");
                         Close();
                     };
                 });
             }
         }
+        GUI.enabled = true;
 
         // Always end horizontal group to avoid layout errors
         GUI.backgroundColor = new Color(1f, 0.4f, 0.4f); // light red tint
@@ -94,7 +99,7 @@ public class GitCommandsMenu : EditorWindow
         process.StartInfo.Arguments = arguments;
         process.StartInfo.WorkingDirectory = projectPath;
         process.StartInfo.CreateNoWindow = true;
-        process.StartInfo.UseShellExecute = true;
+        process.StartInfo.UseShellExecute = false;
 
         process.Start();
         process.WaitForExit();
@@ -113,6 +118,5 @@ public class GitCommandsMenu : EditorWindow
         process.StartInfo.CreateNoWindow = true;
         process.StartInfo.UseShellExecute = true;
         process.Start();
-        // Do not wait for exit; run in background
     }
 }
