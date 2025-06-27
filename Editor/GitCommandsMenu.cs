@@ -34,6 +34,7 @@ public class GitCommandsMenu : EditorWindow
             if (string.IsNullOrWhiteSpace(commitMessage)) {
                 EditorUtility.DisplayDialog("Error", "Commit message cannot be empty.", "OK");
             } else {
+                Close(); // Close the window immediately after pressing the button
                 // Run git commands in background
                 System.Threading.Tasks.Task.Run(() => {
                     var addResult = ExecuteGitCommand("add .");
@@ -57,10 +58,9 @@ public class GitCommandsMenu : EditorWindow
                         };
                         return;
                     }
-                    // Log success and close window
+                    // Log success
                     EditorApplication.delayCall += () => {
                         Debug.Log("Git commit and push succeeded.");
-                        Close();
                     };
                 });
             }
