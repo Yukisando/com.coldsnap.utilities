@@ -62,13 +62,15 @@ public class TeleportPlayerOnPlay
     }
 
     static void RestorePlayerPosition() {
-        if (originalPlayerPosition.HasValue) {
-            player = GameObject.Find("Player");
-            if (player != null) {
-                player.transform.position = originalPlayerPosition.Value;
-                Debug.Log("Player position restored after exiting play mode.");
-            }
-            originalPlayerPosition = null;
+        if (player == null) return;
+
+        GameObject spawnPoint = GameObject.Find("SpawnPoint");
+        if (spawnPoint != null) {
+            player.transform.position = spawnPoint.transform.position;
+            Debug.Log("Player snapped back to SpawnPoint position.");
+        } else if (originalPlayerPosition.HasValue) {
+            player.transform.position = originalPlayerPosition.Value;
+            Debug.Log("Player restored to original position.");
         }
     }
 }
