@@ -67,19 +67,24 @@ public class GitCommandsMenu : EditorWindow
         }
         GUI.enabled = true;
 
-        // Always end horizontal group to avoid layout errors
-        GUI.backgroundColor = new Color(1f, 0.4f, 0.4f); // light red tint
-        if (GUILayout.Button("Discard All Changes", GUILayout.Height(30))) {
-            GUI.backgroundColor = Color.white;
-            if (EditorUtility.DisplayDialog("Discard All Changes",
-                    "Are you sure you want to discard ALL uncommitted changes?",
-                    "Yes", "No")) {
-                ExecuteGitCommand("reset --hard");
-                ExecuteGitCommand("clean -fd");
-                Close();
+        // Ensure GUI layout groups are properly closed
+        try {
+            GUI.backgroundColor = new Color(1f, 0.4f, 0.4f); // light red tint
+            if (GUILayout.Button("Discard All Changes", GUILayout.Height(30))) {
+                GUI.backgroundColor = Color.white;
+                if (EditorUtility.DisplayDialog("Discard All Changes",
+                        "Are you sure you want to discard ALL uncommitted changes?",
+                        "Yes", "No")) {
+                    ExecuteGitCommand("reset --hard");
+                    ExecuteGitCommand("clean -fd");
+                    Close();
+                }
             }
+        } finally {
+            // Always reset GUI state to avoid layout errors
+            GUI.backgroundColor = Color.white;
+            GUI.enabled = true;
         }
-        GUI.backgroundColor = Color.white;
 
         GUILayout.EndHorizontal();
     }
