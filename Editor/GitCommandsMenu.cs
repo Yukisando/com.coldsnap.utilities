@@ -19,9 +19,17 @@ public class GitCommandsMenu : EditorWindow
         window.Show();
     }
 
+    void OnEnable() {
+        // Automatically focus the commit message text area when the window opens
+        EditorApplication.delayCall += () => EditorGUI.FocusTextInControl("CommitMessageTextArea");
+    }
+
     void OnGUI() {
         GUILayout.Space(10);
         GUILayout.Label("Commit Message", EditorStyles.boldLabel);
+
+        // Assign a control name to the text area for focusing
+        GUI.SetNextControlName("CommitMessageTextArea");
         commitMessage = EditorGUILayout.TextArea(commitMessage, GUILayout.Height(60));
 
         GUILayout.Space(10);
@@ -30,7 +38,7 @@ public class GitCommandsMenu : EditorWindow
         // Disable the button if the commit message is empty or whitespace
         bool canCommit = !string.IsNullOrWhiteSpace(commitMessage);
         GUI.enabled = canCommit;
-        if (GUILayout.Button("Commit + Push", GUILayout.Height(30))) {
+        if (GUILayout.Button("Commit + Push", GUILayout.Height(30)) || (canCommit && Event.current.isKey && Event.current.keyCode == KeyCode.Return)) {
             if (string.IsNullOrWhiteSpace(commitMessage)) {
                 EditorUtility.DisplayDialog("Error", "Commit message cannot be empty.", "OK");
             } else {
