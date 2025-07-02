@@ -57,7 +57,7 @@ public class PlatformBuilder : EditorWindow
         EditorGUILayout.HelpBox("Avoid spaces in the app name for best results.", MessageType.Info);
         string appNameLabel = buildAllScenes ? "App Name (Project):" : "App Name (Scene):";
         if (!buildAllScenes) {
-            if (appName == GetDefaultAppName()) appName = SceneManager.GetActiveScene().name;
+            if (appName == GetDefaultAppName().ToLower()) appName = SceneManager.GetActiveScene().name.ToLower();
         }
         else {
             if (appName == SceneManager.GetActiveScene().name) appName = GetDefaultAppName();
