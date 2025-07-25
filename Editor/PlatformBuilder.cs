@@ -337,13 +337,13 @@ public class PlatformBuilder : EditorWindow
 
 	void RefreshSceneList()
 	{
-		// Find all .unity files in the project, excluding Plugins and Packages folders
+		// Find all .scene files in the project directory, excluding package and plugin scenes
 		string[] guids = AssetDatabase.FindAssets("t:Scene");
 		allScenes = guids
 			.Select(AssetDatabase.GUIDToAssetPath)
 			.Where(path =>
-				!path.Contains("/Plugins/", StringComparison.OrdinalIgnoreCase) &&
-				!path.Contains("/Packages/", StringComparison.OrdinalIgnoreCase))
+				!path.StartsWith("Packages/", StringComparison.OrdinalIgnoreCase) && // Exclude package scenes
+				!path.Contains("/Plugins/", StringComparison.OrdinalIgnoreCase)) // Exclude plugin scenes
 			.OrderBy(path => path)
 			.ToArray();
 
@@ -415,3 +415,4 @@ public class PlatformBuilder : EditorWindow
 
     #endregion
 }
+
