@@ -1,6 +1,7 @@
 #region
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -28,10 +29,24 @@ public class PlatformBuilder : EditorWindow
 	bool currentSceneOnly = true; // New field - defaults to true
 	string appName = "";
 
-	// Scene selection variables
-	string[] allScenes = Array.Empty<string>();
-	bool[] selectedScenes = Array.Empty<bool>();
+	// Scene selection variables - updated to support ordering
+	List<SceneInfo> allScenes = new List<SceneInfo>();
 	Vector2 sceneScrollPosition;
+	
+	[System.Serializable]
+	public class SceneInfo
+	{
+		public string path;
+		public string name;
+		public bool selected;
+		
+		public SceneInfo(string scenePath, bool isSelected = false)
+		{
+			path = scenePath;
+			name = Path.GetFileNameWithoutExtension(scenePath);
+			selected = isSelected;
+		}
+	}
 
     #region Menu Items
 
@@ -107,7 +122,7 @@ public class PlatformBuilder : EditorWindow
 			GUILayout.Label("Scene Selection", EditorStyles.boldLabel);
 			EditorGUILayout.BeginVertical("box");
 
-			if (allScenes.Length == 0)
+			if (allScenes.Count == 0)
 			{
 				EditorGUILayout.HelpBox("No scenes found in project.", MessageType.Warning);
 			}
@@ -117,16 +132,16 @@ public class PlatformBuilder : EditorWindow
 				EditorGUILayout.BeginHorizontal();
 				if (GUILayout.Button("Select All", GUILayout.MaxWidth(80)))
 				{
-					for (int i = 0; i < selectedScenes.Length; i++)
+					foreach (var scene in allScenes)
 					{
-						selectedScenes[i] = true;
+						scene.selected = true;
 					}
 				}
 				if (GUILayout.Button("Select None", GUILayout.MaxWidth(80)))
 				{
-					for (int i = 0; i < selectedScenes.Length; i++)
+					foreach (var scene in allScenes)
 					{
-						selectedScenes[i] = false;
+						scene.selected = false;
 					}
 				}
 				GUILayout.FlexibleSpace();
@@ -137,15 +152,35 @@ public class PlatformBuilder : EditorWindow
 				// Scene list with scroll view for better UX
 				sceneScrollPosition = EditorGUILayout.BeginScrollView(sceneScrollPosition, GUILayout.MaxHeight(150));
 
-				for (int i = 0; i < allScenes.Length; i++)
+				for (int i = 0; i < allScenes.Count; i++)
 				{
-					string sceneName = Path.GetFileNameWithoutExtension(allScenes[i]);
-					string scenePath = allScenes[i].Replace("Assets/", "").Replace(".unity", "");
-
+					var scene = allScenes[i];
 					EditorGUILayout.BeginHorizontal();
-					selectedScenes[i] = EditorGUILayout.Toggle(selectedScenes[i], GUILayout.Width(20));
-					EditorGUILayout.LabelField(sceneName, GUILayout.ExpandWidth(true));
-					EditorGUILayout.LabelField($"({scenePath})", EditorStyles.miniLabel, GUILayout.Width(150));
+					
+					// Checkbox for selection
+					scene.selected = EditorGUILayout.Toggle(scene.selected, GUILayout.Width(20));
+					
+					// Scene name
+					EditorGUILayout.LabelField(scene.name, GUILayout.ExpandWidth(true));
+					
+					// Scene path (shortened)
+					string scenePath = scene.path.Replace("Assets/", "").Replace(".unity", "");
+					EditorGUILayout.LabelField($"({scenePath})", EditorStyles.miniLabel, GUILayout.Width(120));
+					
+					// Up/Down buttons for ordering (only show for selected scenes)
+					GUI.enabled = scene.selected && i > 0 && allScenes[i-1].selected;
+					if (GUILayout.Button("▲", GUILayout.Width(25)))
+					{
+						SwapScenes(i, i - 1);
+					}
+					
+					GUI.enabled = scene.selected && i < allScenes.Count - 1 && allScenes[i+1].selected;
+					if (GUILayout.Button("▼", GUILayout.Width(25)))
+					{
+						SwapScenes(i, i + 1);
+					}
+					
+					GUI.enabled = true;
 					EditorGUILayout.EndHorizontal();
 				}
 
@@ -158,7 +193,7 @@ public class PlatformBuilder : EditorWindow
 		EditorGUILayout.Space(15);
 
 		// Validation and build button
-		int selectedCount = currentSceneOnly ? 1 : selectedScenes.Count(s => s);
+		int selectedCount = currentSceneOnly ? 1 : allScenes.Count(s => s.selected);
 		if (!currentSceneOnly && selectedCount == 0)
 		{
 			EditorGUILayout.HelpBox("Please select at least one scene to build.", MessageType.Warning);
@@ -205,7 +240,8 @@ public class PlatformBuilder : EditorWindow
 		{
 			// Use selected scenes from the list
 			selectedScenePaths = allScenes
-				.Where((scene, index) => selectedScenes[index])
+				.Where(scene => scene.selected)
+				.Select(scene => scene.path)
 				.ToArray();
 		}
 
@@ -319,6 +355,17 @@ public class PlatformBuilder : EditorWindow
 		EditorPrefs.SetBool("PlatformBuilder_AutoRunPlayer", autoRunPlayer);
 		EditorPrefs.SetBool("PlatformBuilder_CurrentSceneOnly", currentSceneOnly);
 		EditorPrefs.SetString("PlatformBuilder_AppName", appName);
+		
+		// Save scene selection and ordering
+		if (!currentSceneOnly && allScenes.Count > 0)
+		{
+			var sceneData = new List<string>();
+			foreach (var scene in allScenes)
+			{
+				sceneData.Add($"{scene.path}|{scene.selected}");
+			}
+			EditorPrefs.SetString("PlatformBuilder_SceneData", string.Join(";", sceneData));
+		}
 	}
 
 	void LoadPreferences()
@@ -328,6 +375,13 @@ public class PlatformBuilder : EditorWindow
 		autoRunPlayer = EditorPrefs.GetBool("PlatformBuilder_AutoRunPlayer", false);
 		currentSceneOnly = EditorPrefs.GetBool("PlatformBuilder_CurrentSceneOnly", true);
 		appName = EditorPrefs.GetString("PlatformBuilder_AppName", GetDefaultAppName());
+		
+		// Load scene list and preferences
+		if (!currentSceneOnly)
+		{
+			RefreshSceneList();
+			LoadScenePreferences();
+		}
 	}
 
 	static string GetDefaultAppName()
@@ -345,10 +399,11 @@ public class PlatformBuilder : EditorWindow
 				!path.StartsWith("Packages/", StringComparison.OrdinalIgnoreCase) && // Exclude package scenes
 				!path.Contains("/Plugins/", StringComparison.OrdinalIgnoreCase)) // Exclude plugin scenes
 			.OrderBy(path => path)
-			.ToArray();
+			.Select(path => new SceneInfo(path)) // Create SceneInfo objects
+			.ToList();
 
 		// Initialize or resize the selectedScenes array
-		if (selectedScenes.Length != allScenes.Length)
+		/*if (selectedScenes.Length != allScenes.Length)
 		{
 			bool[] newSelectedScenes = new bool[allScenes.Length];
 			for (int i = 0; i < Math.Min(selectedScenes.Length, newSelectedScenes.Length); i++)
@@ -356,7 +411,7 @@ public class PlatformBuilder : EditorWindow
 				newSelectedScenes[i] = selectedScenes[i];
 			}
 			selectedScenes = newSelectedScenes;
-		}
+		}*/
 	}
 
 	void UpdateAppNameFromSelection()
@@ -369,18 +424,16 @@ public class PlatformBuilder : EditorWindow
 		else
 		{
 			// When using scene selection, use the existing logic
-			if (selectedScenes.Length == 0) return;
+			if (allScenes.Count == 0) return;
 
-			string[] selectedScenePaths = allScenes
-				.Where((scene, index) => selectedScenes[index])
-				.ToArray();
+			var selectedScenes = allScenes.Where(scene => scene.selected).ToList();
 
-			if (selectedScenePaths.Length == 1)
+			if (selectedScenes.Count == 1)
 			{
 				// If one scene is selected, use its name
-				appName = Path.GetFileNameWithoutExtension(selectedScenePaths[0]);
+				appName = Path.GetFileNameWithoutExtension(selectedScenes[0].path);
 			}
-			else if (selectedScenePaths.Length > 1)
+			else if (selectedScenes.Count > 1)
 			{
 				// If multiple scenes are selected, use the project name
 				appName = GetDefaultAppName();
@@ -396,23 +449,55 @@ public class PlatformBuilder : EditorWindow
 	void SelectCurrentScene()
 	{
 		// Clear all selections first
-		for (int i = 0; i < selectedScenes.Length; i++)
+		foreach (var scene in allScenes)
 		{
-			selectedScenes[i] = false;
+			scene.selected = false;
 		}
 
 		// Select the currently active scene
 		string activeScenePath = SceneManager.GetActiveScene().path;
-		for (int i = 0; i < allScenes.Length; i++)
+		var activeScene = allScenes.FirstOrDefault(scene => scene.path == activeScenePath);
+		if (activeScene != null)
 		{
-			if (allScenes[i] == activeScenePath)
+			activeScene.selected = true;
+		}
+	}
+
+	void SwapScenes(int indexA, int indexB)
+	{
+		if (indexA < 0 || indexA >= allScenes.Count || indexB < 0 || indexB >= allScenes.Count)
+			return;
+
+		// Swap the scenes
+		var temp = allScenes[indexA];
+		allScenes[indexA] = allScenes[indexB];
+		allScenes[indexB] = temp;
+
+		// Repaint to update the UI
+		Repaint();
+	}
+
+	void LoadScenePreferences()
+	{
+		string sceneData = EditorPrefs.GetString("PlatformBuilder_SceneData", "");
+		if (string.IsNullOrEmpty(sceneData)) return;
+
+		var sceneEntries = sceneData.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+		foreach (var entry in sceneEntries)
+		{
+			var parts = entry.Split('|');
+			if (parts.Length != 2) continue;
+
+			string path = parts[0];
+			bool isSelected = bool.Parse(parts[1]);
+
+			var sceneInfo = allScenes.FirstOrDefault(s => s.path == path);
+			if (sceneInfo != null)
 			{
-				selectedScenes[i] = true;
-				break;
+				sceneInfo.selected = isSelected;
 			}
 		}
 	}
 
     #endregion
 }
-
