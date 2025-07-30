@@ -93,15 +93,11 @@ public class PlatformBuilder : EditorWindow
 			RefreshSceneList();
 			SelectCurrentScene();
 		}
-		else if (!currentSceneOnly)
+		else if (!currentSceneOnly && previousCurrentSceneOnly)
 		{
-			// When showing all scenes, refresh the list
+			// Only refresh when switching FROM current scene mode TO scene selection mode
 			RefreshSceneList();
-			// If this is the first time showing all scenes, load preferences
-			if (previousCurrentSceneOnly)
-			{
-				LoadScenePreferences();
-			}
+			LoadScenePreferences();
 		}
 
 		// Update app name based on scene selection
@@ -492,12 +488,4 @@ public class PlatformBuilder : EditorWindow
 			bool isSelected = bool.Parse(parts[1]);
 
 			var sceneInfo = allScenes.FirstOrDefault(s => s.path == path);
-			if (sceneInfo != null)
-			{
-				sceneInfo.selected = isSelected;
-			}
-		}
-	}
-
-    #endregion
-}
+			if
