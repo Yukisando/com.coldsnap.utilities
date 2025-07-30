@@ -97,10 +97,10 @@ public class PlatformBuilder : EditorWindow
 		{
 			// When showing all scenes, refresh the list
 			RefreshSceneList();
-			// If this is the first time showing all scenes, select current scene by default
+			// If this is the first time showing all scenes, load preferences
 			if (previousCurrentSceneOnly)
 			{
-				SelectCurrentScene();
+				LoadScenePreferences();
 			}
 		}
 
