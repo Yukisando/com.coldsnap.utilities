@@ -13,6 +13,14 @@ using Debug = UnityEngine.Debug;
 
 #endregion
 
+public enum BuildPlatform
+{
+	Windows,
+	MacOS,
+	Android,
+	WebGL
+}
+
 [System.Serializable]
 public class SceneInfo
 {
@@ -39,59 +47,109 @@ public class PlatformBuilderSettings
 	public bool autoRunPlayer;
 	public bool currentSceneOnly = true;
 	public string appName = "";
+	public bool useCustomAppName = false; // New toggle for custom app name
 }
 
 public class PlatformBuilder : EditorWindow
 {
-	enum BuildPlatform
-	{
-		Windows,
-		MacOS,
-		Android,
-		WebGL
-	}
-
 	private static PlatformBuilderSettings settings;
 	private const string SETTINGS_KEY = "PlatformBuilder_Settings";
 	
 	// Scene selection variables
 	List<SceneInfo> allScenes = new List<SceneInfo>();
 	Vector2 sceneScrollPosition;
+	
+	// Drag and drop variables
+	private int draggedIndex = -1;
+	private bool isDragging = false;
 
-	[MenuItem("Tools/Platform Builder")]
+	[MenuItem("Tools/Platform Builder &F1")]
 	static void ShowWindow()
 	{
-		GetWindow<PlatformBuilder>("Platform Builder");
+		var window = GetWindow<PlatformBuilder>("Platform Builder");
+		window.Show();
+		window.autoRepaintOnSceneChange = true;
 	}
 
 	void OnEnable()
 	{
+		// Ensure settings is initialized before doing anything else
+		if (settings == null)
+		{
+			settings = new PlatformBuilderSettings();
+		}
+		
 		LoadSettings();
 		RefreshSceneList();
+		UpdateWindowSize();
 	}
 
 	void OnDisable()
 	{
 		SaveSettings();
 	}
+	
+	// Auto-size the window based on content
+	void UpdateWindowSize()
+	{
+		float width = 400f;
+		float height = 300f; // Base height
+		
+		if (!settings.currentSceneOnly && allScenes.Count > 0)
+		{
+			height += Mathf.Min(allScenes.Count * 25f, 200f) ; // Scene list height + padding
+		}
+		
+		minSize = new Vector2(width, height);
+		maxSize = new Vector2(width + 100f, height + 200f);
+	}
+	
+	// Get automatic app name based on scene selection
+	string GetAutoAppName()
+	{
+		if (settings.currentSceneOnly)
+		{
+			var currentScene = SceneManager.GetActiveScene();
+			return string.IsNullOrEmpty(currentScene.name) ? PlayerSettings.productName : currentScene.name;
+		}
+		else
+		{
+			var selectedScenes = allScenes.Where(s => s.isSelected).ToList();
+			if (selectedScenes.Count == 1)
+			{
+				return selectedScenes[0].sceneName;
+			}
+			else
+			{
+				return PlayerSettings.productName;
+			}
+		}
+	}
 
 	void LoadSettings()
 	{
+		// Ensure settings is never null
+		if (settings == null)
+		{
+			settings = new PlatformBuilderSettings();
+		}
+		
 		string json = EditorPrefs.GetString(SETTINGS_KEY, "");
 		if (!string.IsNullOrEmpty(json))
 		{
 			try
 			{
-				settings = JsonUtility.FromJson<PlatformBuilderSettings>(json);
+				var loadedSettings = JsonUtility.FromJson<PlatformBuilderSettings>(json);
+				if (loadedSettings != null)
+				{
+					settings = loadedSettings;
+				}
 			}
-			catch
+			catch (System.Exception e)
 			{
+				Debug.LogWarning($"Failed to load PlatformBuilder settings: {e.Message}");
 				settings = new PlatformBuilderSettings();
 			}
-		}
-		else
-		{
-			settings = new PlatformBuilderSettings();
 		}
 	}
 
@@ -111,12 +169,17 @@ public class PlatformBuilder : EditorWindow
 		// Get all scenes in build settings
 		var buildScenes = EditorBuildSettings.scenes.ToList();
 		
-		// Get all scene files in the project
-		string[] sceneGuids = AssetDatabase.FindAssets("t:Scene");
+		// Get all scene files in the Assets folder only, excluding plugins
+		string[] sceneGuids = AssetDatabase.FindAssets("t:Scene", new[] { "Assets" });
 		
 		foreach (string guid in sceneGuids)
 		{
 			string scenePath = AssetDatabase.GUIDToAssetPath(guid);
+			
+			// Skip scenes in the plugins folder
+			if (scenePath.ToLower().Contains("/plugins/") || scenePath.ToLower().Contains("\\plugins\\"))
+				continue;
+			
 			string sceneName = Path.GetFileNameWithoutExtension(scenePath);
 			
 			// Check if we have saved settings for this scene
@@ -137,6 +200,24 @@ public class PlatformBuilder : EditorWindow
 		}
 	}
 
+	void MoveScene(int fromIndex, int toIndex)
+	{
+		if (fromIndex < 0 || fromIndex >= allScenes.Count || toIndex < 0 || toIndex >= allScenes.Count)
+			return;
+
+		var scene = allScenes[fromIndex];
+		allScenes.RemoveAt(fromIndex);
+		allScenes.Insert(toIndex, scene);
+
+		// Update build orders
+		for (int i = 0; i < allScenes.Count; i++)
+		{
+			allScenes[i].buildOrder = i;
+		}
+
+		SaveSettings();
+	}
+
 	void OnGUI()
 	{
 		GUILayout.Label("Platform Builder", EditorStyles.boldLabel);
@@ -151,12 +232,34 @@ public class PlatformBuilder : EditorWindow
 		// Build options
 		settings.isDebugBuild = EditorGUILayout.Toggle("Debug Build", settings.isDebugBuild);
 		settings.autoRunPlayer = EditorGUILayout.Toggle("Auto Run Player", settings.autoRunPlayer);
+		
+		bool previousCurrentSceneOnly = settings.currentSceneOnly;
 		settings.currentSceneOnly = EditorGUILayout.Toggle("Current Scene Only", settings.currentSceneOnly);
+		
+		// Update window size if scene selection mode changed
+		if (previousCurrentSceneOnly != settings.currentSceneOnly)
+		{
+			UpdateWindowSize();
+		}
 		
 		EditorGUILayout.Space();
 		
-		// App name
-		settings.appName = EditorGUILayout.TextField("App Name", settings.appName);
+		// App name section - fixed layout
+		settings.useCustomAppName = EditorGUILayout.Toggle("Use Custom App Name", settings.useCustomAppName);
+		
+		GUI.enabled = settings.useCustomAppName;
+		if (settings.useCustomAppName)
+		{
+			settings.appName = EditorGUILayout.TextField("App Name", settings.appName);
+		}
+		else
+		{
+			// Show auto-generated name as read-only
+			string autoName = GetAutoAppName();
+			EditorGUILayout.TextField("App Name", autoName);
+			settings.appName = autoName; // Update the actual app name
+		}
+		GUI.enabled = true;
 		
 		EditorGUILayout.Space();
 		
@@ -164,6 +267,7 @@ public class PlatformBuilder : EditorWindow
 		if (!settings.currentSceneOnly)
 		{
 			GUILayout.Label("Scene Selection & Build Order", EditorStyles.boldLabel);
+			GUILayout.Label("Click and drag the ≡ handle to reorder scenes", EditorStyles.miniLabel);
 			
 			EditorGUILayout.BeginHorizontal();
 			if (GUILayout.Button("Select All"))
@@ -172,6 +276,8 @@ public class PlatformBuilder : EditorWindow
 				{
 					scene.isSelected = true;
 				}
+				SaveSettings();
+				Repaint();
 			}
 			if (GUILayout.Button("Select None"))
 			{
@@ -179,228 +285,225 @@ public class PlatformBuilder : EditorWindow
 				{
 					scene.isSelected = false;
 				}
+				SaveSettings();
+				Repaint();
 			}
 			if (GUILayout.Button("Refresh Scenes"))
 			{
 				RefreshSceneList();
+				UpdateWindowSize();
+				Repaint();
 			}
 			EditorGUILayout.EndHorizontal();
 			
 			EditorGUILayout.Space();
 			
-			// Scene list with scroll
-			sceneScrollPosition = EditorGUILayout.BeginScrollView(sceneScrollPosition, GUILayout.MaxHeight(200));
+			// Scene list with scroll and drag-drop
+			sceneScrollPosition = EditorGUILayout.BeginScrollView(sceneScrollPosition, GUILayout.MaxHeight(300));
 			
 			for (int i = 0; i < allScenes.Count; i++)
 			{
 				EditorGUILayout.BeginHorizontal();
 				
-				// Up/Down arrows for reordering
-				GUI.enabled = i > 0;
-				if (GUILayout.Button("↑", GUILayout.Width(25)))
+				// Scene selection toggle
+				bool wasSelected = allScenes[i].isSelected;
+				allScenes[i].isSelected = EditorGUILayout.Toggle(allScenes[i].isSelected, GUILayout.Width(20));
+				
+				if (wasSelected != allScenes[i].isSelected)
 				{
-					var temp = allScenes[i];
-					allScenes[i] = allScenes[i - 1];
-					allScenes[i - 1] = temp;
-					
-					// Update build orders
-					allScenes[i].buildOrder = i;
-					allScenes[i - 1].buildOrder = i - 1;
+					SaveSettings();
 				}
 				
-				GUI.enabled = i < allScenes.Count - 1;
-				if (GUILayout.Button("↓", GUILayout.Width(25)))
+				// Drag handle with proper event handling
+				Rect dragRect = GUILayoutUtility.GetRect(20, EditorGUIUtility.singleLineHeight);
+				GUI.Label(dragRect, "≡", EditorStyles.centeredGreyMiniLabel);
+				HandleDragAndDrop(dragRect, i);
+				
+				// Scene name with build order
+				string displayName = $"{i}: {allScenes[i].sceneName}";
+				if (allScenes[i].isSelected)
 				{
-					var temp = allScenes[i];
-					allScenes[i] = allScenes[i + 1];
-					allScenes[i + 1] = temp;
-					
-					// Update build orders
-					allScenes[i].buildOrder = i;
-					allScenes[i + 1].buildOrder = i + 1;
+					GUI.color = Color.green;
 				}
-				
-				GUI.enabled = true;
-				
-				// Scene selection checkbox
-				bool newSelected = EditorGUILayout.Toggle(allScenes[i].isSelected, GUILayout.Width(20));
-				if (newSelected != allScenes[i].isSelected)
-				{
-					allScenes[i].isSelected = newSelected;
-				}
-				
-				// Scene name
-				EditorGUILayout.LabelField($"{i + 1}. {allScenes[i].sceneName}", GUILayout.ExpandWidth(true));
+				EditorGUILayout.LabelField(displayName);
+				GUI.color = Color.white;
 				
 				EditorGUILayout.EndHorizontal();
 			}
 			
 			EditorGUILayout.EndScrollView();
-			
-			EditorGUILayout.Space();
-			
-			// Show selected scenes count
-			int selectedCount = allScenes.Count(s => s.isSelected);
-			EditorGUILayout.LabelField($"Selected Scenes: {selectedCount} / {allScenes.Count}");
 		}
 		
 		EditorGUILayout.Space();
 		
 		// Build button
-		GUI.backgroundColor = Color.green;
-		if (GUILayout.Button("Build", GUILayout.Height(40)))
+		GUI.enabled = true;
+		if (GUILayout.Button("Build", GUILayout.Height(30)))
 		{
-			BuildProject();
+			BuildForPlatform();
 		}
-		GUI.backgroundColor = Color.white;
+	}
+	
+	void HandleDragAndDrop(Rect dragRect, int index)
+	{
+		Event evt = Event.current;
+		int controlID = GUIUtility.GetControlID(FocusType.Passive);
 		
-		// Auto-save settings when values change
-		if (GUI.changed)
+		switch (evt.type)
 		{
-			SaveSettings();
-		}
-	}
-
-	void BuildProject()
-	{
-		try
-		{
-			string targetPath = GetBuildPath();
-			if (string.IsNullOrEmpty(targetPath))
-				return;
-
-			// Get scenes to build
-			string[] scenesToBuild = GetScenesToBuild();
-			if (scenesToBuild.Length == 0)
-			{
-				EditorUtility.DisplayDialog("Error", "No scenes selected for build!", "OK");
-				return;
-			}
-
-			// Set build options
-			BuildOptions buildOptions = BuildOptions.None;
-			if (settings.isDebugBuild)
-				buildOptions |= BuildOptions.Development;
-			if (settings.autoRunPlayer)
-				buildOptions |= BuildOptions.AutoRunPlayer;
-
-			// Set build target
-			BuildTarget buildTarget = GetBuildTarget();
-			BuildTargetGroup buildTargetGroup = GetBuildTargetGroup();
-
-			// Perform build
-			BuildPlayerOptions buildPlayerOptions = new BuildPlayerOptions
-			{
-				scenes = scenesToBuild,
-				locationPathName = targetPath,
-				target = buildTarget,
-				targetGroup = buildTargetGroup,
-				options = buildOptions
-			};
-
-			BuildReport report = BuildPipeline.BuildPlayer(buildPlayerOptions);
-			BuildSummary summary = report.summary;
-
-			if (summary.result == BuildResult.Succeeded)
-			{
-				Debug.Log($"Build succeeded: {summary.outputPath}");
-				EditorUtility.DisplayDialog("Build Complete", $"Build completed successfully!\nOutput: {summary.outputPath}", "OK");
-				
-				if (settings.autoRunPlayer && File.Exists(summary.outputPath))
+			case EventType.MouseDown:
+				if (dragRect.Contains(evt.mousePosition) && evt.button == 0)
 				{
-					Process.Start(summary.outputPath);
+					GUIUtility.hotControl = controlID;
+					draggedIndex = index;
+					isDragging = false; // Start as false, only set to true on drag
+					evt.Use();
 				}
-			}
-			else if (summary.result == BuildResult.Failed)
-			{
-				Debug.LogError("Build failed!");
-				EditorUtility.DisplayDialog("Build Failed", "Build failed! Check console for details.", "OK");
-			}
+				break;
+				
+			case EventType.MouseDrag:
+				if (GUIUtility.hotControl == controlID)
+				{
+					isDragging = true;
+					EditorGUIUtility.AddCursorRect(dragRect, MouseCursor.MoveArrow);
+					Repaint();
+					evt.Use();
+				}
+				break;
+				
+			case EventType.MouseUp:
+				if (GUIUtility.hotControl == controlID)
+				{
+					GUIUtility.hotControl = 0;
+					
+					if (isDragging)
+					{
+						// Find drop target
+						Vector2 mousePos = evt.mousePosition;
+						for (int i = 0; i < allScenes.Count; i++)
+						{
+							if (i != draggedIndex)
+							{
+								float lineY = i * EditorGUIUtility.singleLineHeight;
+								if (mousePos.y >= lineY && mousePos.y <= lineY + EditorGUIUtility.singleLineHeight)
+								{
+									MoveScene(draggedIndex, i);
+									break;
+								}
+							}
+						}
+					}
+					
+					draggedIndex = -1;
+					isDragging = false;
+					evt.Use();
+					Repaint();
+				}
+				break;
 		}
-		catch (Exception e)
+		
+		// Visual feedback for dragging
+		if (isDragging && draggedIndex == index)
 		{
-			Debug.LogError($"Build error: {e.Message}");
-			EditorUtility.DisplayDialog("Build Error", $"An error occurred during build:\n{e.Message}", "OK");
+			EditorGUI.DrawRect(dragRect, new Color(0.5f, 0.5f, 1f, 0.3f));
+		}
+		
+		// Change cursor when hovering over drag handle
+		if (dragRect.Contains(Event.current.mousePosition))
+		{
+			EditorGUIUtility.AddCursorRect(dragRect, MouseCursor.MoveArrow);
 		}
 	}
-
-	string[] GetScenesToBuild()
+	
+	void BuildForPlatform()
 	{
+		string buildPath = "";
+		BuildTarget buildTarget = BuildTarget.StandaloneWindows64;
+		
+		switch (settings.selectedPlatform)
+		{
+			case BuildPlatform.Windows:
+				buildTarget = BuildTarget.StandaloneWindows64;
+				buildPath = EditorUtility.SaveFolderPanel("Choose Build Location", "", "");
+				if (!string.IsNullOrEmpty(buildPath))
+				{
+					string appName = string.IsNullOrEmpty(settings.appName) ? "MyApp" : settings.appName;
+					buildPath = Path.Combine(buildPath, appName + ".exe");
+				}
+				break;
+				
+			case BuildPlatform.MacOS:
+				buildTarget = BuildTarget.StandaloneOSX;
+				buildPath = EditorUtility.SaveFolderPanel("Choose Build Location", "", "");
+				if (!string.IsNullOrEmpty(buildPath))
+				{
+					string appName = string.IsNullOrEmpty(settings.appName) ? "MyApp" : settings.appName;
+					buildPath = Path.Combine(buildPath, appName + ".app");
+				}
+				break;
+				
+			case BuildPlatform.Android:
+				buildTarget = BuildTarget.Android;
+				buildPath = EditorUtility.SaveFilePanel("Choose Build Location", "", "MyApp", "apk");
+				break;
+				
+			case BuildPlatform.WebGL:
+				buildTarget = BuildTarget.WebGL;
+				buildPath = EditorUtility.SaveFolderPanel("Choose Build Location", "", "");
+				break;
+		}
+		
+		if (string.IsNullOrEmpty(buildPath))
+			return;
+		
+		// Setup build player options
+		BuildPlayerOptions buildPlayerOptions = new BuildPlayerOptions();
+		buildPlayerOptions.locationPathName = buildPath;
+		buildPlayerOptions.target = buildTarget;
+		buildPlayerOptions.options = settings.isDebugBuild ? BuildOptions.Development : BuildOptions.None;
+		
+		if (settings.autoRunPlayer)
+		{
+			buildPlayerOptions.options |= BuildOptions.AutoRunPlayer;
+		}
+		
+		// Set scenes
 		if (settings.currentSceneOnly)
 		{
-			var activeScene = SceneManager.GetActiveScene();
-			if (!string.IsNullOrEmpty(activeScene.path))
-			{
-				return new string[] { activeScene.path };
-			}
-			else
-			{
-				EditorUtility.DisplayDialog("Error", "No active scene found!", "OK");
-				return new string[0];
-			}
+			var currentScene = SceneManager.GetActiveScene();
+			buildPlayerOptions.scenes = new[] { currentScene.path };
 		}
 		else
 		{
-			return allScenes.Where(s => s.isSelected).OrderBy(s => s.buildOrder).Select(s => s.scenePath).ToArray();
+			var selectedScenes = allScenes.Where(s => s.isSelected).OrderBy(s => s.buildOrder).Select(s => s.scenePath).ToArray();
+			if (selectedScenes.Length == 0)
+			{
+				EditorUtility.DisplayDialog("No Scenes Selected", "Please select at least one scene to build.", "OK");
+				return;
+			}
+			buildPlayerOptions.scenes = selectedScenes;
 		}
-	}
-
-	string GetBuildPath()
-	{
-		string defaultName = string.IsNullOrEmpty(settings.appName) ? Application.productName : settings.appName;
-		string extension = GetBuildExtension();
 		
-		string path = EditorUtility.SaveFilePanel($"Build {settings.selectedPlatform}", "", defaultName, extension);
-		return path;
-	}
-
-	string GetBuildExtension()
-	{
-		switch (settings.selectedPlatform)
+		Debug.Log($"Building for {settings.selectedPlatform} to: {buildPath}");
+		
+		BuildReport report = BuildPipeline.BuildPlayer(buildPlayerOptions);
+		BuildSummary summary = report.summary;
+		
+		if (summary.result == BuildResult.Succeeded)
 		{
-			case BuildPlatform.Windows:
-				return "exe";
-			case BuildPlatform.MacOS:
-				return "app";
-			case BuildPlatform.Android:
-				return "apk";
-			case BuildPlatform.WebGL:
-				return "";
-			default:
-				return "";
+			Debug.Log($"Build succeeded: {summary.outputPath}");
+			
+			if (settings.selectedPlatform == BuildPlatform.Windows && !settings.autoRunPlayer)
+			{
+				if (EditorUtility.DisplayDialog("Build Complete", $"Build completed successfully!\n\nOpen build folder?", "Yes", "No"))
+				{
+					Process.Start(Path.GetDirectoryName(summary.outputPath));
+				}
+			}
 		}
-	}
-
-	BuildTarget GetBuildTarget()
-	{
-		switch (settings.selectedPlatform)
+		else if (summary.result == BuildResult.Failed)
 		{
-			case BuildPlatform.Windows:
-				return BuildTarget.StandaloneWindows64;
-			case BuildPlatform.MacOS:
-				return BuildTarget.StandaloneOSX;
-			case BuildPlatform.Android:
-				return BuildTarget.Android;
-			case BuildPlatform.WebGL:
-				return BuildTarget.WebGL;
-			default:
-				return BuildTarget.StandaloneWindows64;
-		}
-	}
-
-	BuildTargetGroup GetBuildTargetGroup()
-	{
-		switch (settings.selectedPlatform)
-		{
-			case BuildPlatform.Windows:
-			case BuildPlatform.MacOS:
-				return BuildTargetGroup.Standalone;
-			case BuildPlatform.Android:
-				return BuildTargetGroup.Android;
-			case BuildPlatform.WebGL:
-				return BuildTargetGroup.WebGL;
-			default:
-				return BuildTargetGroup.Standalone;
+			Debug.LogError("Build failed");
 		}
 	}
 }
