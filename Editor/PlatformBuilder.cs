@@ -48,6 +48,7 @@ public class PlatformBuilderSettings
 	public bool currentSceneOnly = true;
 	public string appName = "";
 	public bool useCustomAppName = false; // New toggle for custom app name
+	public string buildFolderPath = ""; // Remember the base build folder location
 }
 
 public class PlatformBuilder : EditorWindow
@@ -244,6 +245,39 @@ public class PlatformBuilder : EditorWindow
 		
 		EditorGUILayout.Space();
 		
+		// Build folder section
+		GUILayout.Label("Build Settings", EditorStyles.boldLabel);
+		
+		EditorGUILayout.BeginHorizontal();
+		EditorGUILayout.LabelField("Build Folder:", GUILayout.Width(80));
+		if (string.IsNullOrEmpty(settings.buildFolderPath))
+		{
+			EditorGUILayout.LabelField("(Not set)", EditorStyles.miniLabel);
+		}
+		else
+		{
+			EditorGUILayout.LabelField(settings.buildFolderPath, EditorStyles.miniLabel);
+		}
+		
+		if (GUILayout.Button("Browse", GUILayout.Width(60)))
+		{
+			string selectedPath = EditorUtility.OpenFolderPanel("Select Build Folder", settings.buildFolderPath, "");
+			if (!string.IsNullOrEmpty(selectedPath))
+			{
+				settings.buildFolderPath = selectedPath;
+				SaveSettings();
+			}
+		}
+		
+		if (!string.IsNullOrEmpty(settings.buildFolderPath) && GUILayout.Button("Clear", GUILayout.Width(50)))
+		{
+			settings.buildFolderPath = "";
+			SaveSettings();
+		}
+		EditorGUILayout.EndHorizontal();
+		
+		EditorGUILayout.Space();
+		
 		// App name section - fixed layout
 		settings.useCustomAppName = EditorGUILayout.Toggle("Use Custom App Name", settings.useCustomAppName);
 		
@@ -417,6 +451,46 @@ public class PlatformBuilder : EditorWindow
 	
 	void BuildForPlatform()
 	{
+		// Check if build folder is set, if not, ask for it
+		if (string.IsNullOrEmpty(settings.buildFolderPath))
+		{
+			string selectedPath = EditorUtility.OpenFolderPanel("Select Build Folder", "", "");
+			if (string.IsNullOrEmpty(selectedPath))
+				return;
+			
+			settings.buildFolderPath = selectedPath;
+			SaveSettings();
+		}
+		
+		// Verify the build folder still exists
+		if (!Directory.Exists(settings.buildFolderPath))
+		{
+			if (EditorUtility.DisplayDialog("Build Folder Not Found", 
+				$"The build folder '{settings.buildFolderPath}' no longer exists.\n\nSelect a new build folder?", 
+				"Yes", "Cancel"))
+			{
+				string selectedPath = EditorUtility.OpenFolderPanel("Select Build Folder", "", "");
+				if (string.IsNullOrEmpty(selectedPath))
+					return;
+				
+				settings.buildFolderPath = selectedPath;
+				SaveSettings();
+			}
+			else
+			{
+				return;
+			}
+		}
+		
+		// Get app name
+		string appName = string.IsNullOrEmpty(settings.appName) ? PlayerSettings.productName : settings.appName;
+		if (string.IsNullOrEmpty(appName))
+		{
+			appName = "MyApp";
+		}
+		
+		// Create platform-specific build path
+		string platformName = "";
 		string buildPath = "";
 		BuildTarget buildTarget = BuildTarget.StandaloneWindows64;
 		
@@ -424,37 +498,40 @@ public class PlatformBuilder : EditorWindow
 		{
 			case BuildPlatform.Windows:
 				buildTarget = BuildTarget.StandaloneWindows64;
-				buildPath = EditorUtility.SaveFolderPanel("Choose Build Location", "", "");
-				if (!string.IsNullOrEmpty(buildPath))
-				{
-					string appName = string.IsNullOrEmpty(settings.appName) ? "MyApp" : settings.appName;
-					buildPath = Path.Combine(buildPath, appName + ".exe");
-				}
+				platformName = "Windows";
+				// Build/Windows/AppName/AppName.exe
+				string windowsFolder = Path.Combine(settings.buildFolderPath, platformName, appName);
+				Directory.CreateDirectory(windowsFolder);
+				buildPath = Path.Combine(windowsFolder, appName + ".exe");
 				break;
 				
 			case BuildPlatform.MacOS:
 				buildTarget = BuildTarget.StandaloneOSX;
-				buildPath = EditorUtility.SaveFolderPanel("Choose Build Location", "", "");
-				if (!string.IsNullOrEmpty(buildPath))
-				{
-					string appName = string.IsNullOrEmpty(settings.appName) ? "MyApp" : settings.appName;
-					buildPath = Path.Combine(buildPath, appName + ".app");
-				}
+				platformName = "MacOS";
+				// Build/MacOS/AppName/AppName.app
+				string macFolder = Path.Combine(settings.buildFolderPath, platformName, appName);
+				Directory.CreateDirectory(macFolder);
+				buildPath = Path.Combine(macFolder, appName + ".app");
 				break;
 				
 			case BuildPlatform.Android:
 				buildTarget = BuildTarget.Android;
-				buildPath = EditorUtility.SaveFilePanel("Choose Build Location", "", "MyApp", "apk");
+				platformName = "Android";
+				// Build/Android/AppName.apk
+				string androidFolder = Path.Combine(settings.buildFolderPath, platformName);
+				Directory.CreateDirectory(androidFolder);
+				buildPath = Path.Combine(androidFolder, appName + ".apk");
 				break;
 				
 			case BuildPlatform.WebGL:
 				buildTarget = BuildTarget.WebGL;
-				buildPath = EditorUtility.SaveFolderPanel("Choose Build Location", "", "");
+				platformName = "WebGL";
+				// Build/WebGL/AppName/
+				string webglFolder = Path.Combine(settings.buildFolderPath, platformName, appName);
+				Directory.CreateDirectory(webglFolder);
+				buildPath = webglFolder;
 				break;
 		}
-		
-		if (string.IsNullOrEmpty(buildPath))
-			return;
 		
 		// Setup build player options
 		BuildPlayerOptions buildPlayerOptions = new BuildPlayerOptions();
@@ -493,11 +570,29 @@ public class PlatformBuilder : EditorWindow
 		{
 			Debug.Log($"Build succeeded: {summary.outputPath}");
 			
-			if (settings.selectedPlatform == BuildPlatform.Windows && !settings.autoRunPlayer)
+			if (!settings.autoRunPlayer)
 			{
-				if (EditorUtility.DisplayDialog("Build Complete", $"Build completed successfully!\n\nOpen build folder?", "Yes", "No"))
+				if (EditorUtility.DisplayDialog("Build Complete", $"Build completed successfully!\n\nPath: {summary.outputPath}\n\nOpen build folder?", "Yes", "No"))
 				{
-					Process.Start(Path.GetDirectoryName(summary.outputPath));
+					// For different platforms, open the appropriate folder
+					string folderToOpen = "";
+					switch (settings.selectedPlatform)
+					{
+						case BuildPlatform.Android:
+							folderToOpen = Path.GetDirectoryName(summary.outputPath);
+							break;
+						case BuildPlatform.WebGL:
+							folderToOpen = summary.outputPath;
+							break;
+						default:
+							folderToOpen = Path.GetDirectoryName(summary.outputPath);
+							break;
+					}
+					
+					if (Directory.Exists(folderToOpen))
+					{
+						Process.Start(folderToOpen);
+					}
 				}
 			}
 		}
