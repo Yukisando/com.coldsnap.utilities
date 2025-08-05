@@ -64,7 +64,7 @@ public class PlatformBuilder : EditorWindow
 	private int draggedIndex = -1;
 	private bool isDragging = false;
 
-	[MenuItem("Tools/Platform Builder &F1")]
+	[MenuItem("Tools/Platform Builder #&B")]
 	static void ShowWindow()
 	{
 		var window = GetWindow<PlatformBuilder>("Platform Builder");
