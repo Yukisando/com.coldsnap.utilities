@@ -489,6 +489,15 @@ public class PlatformBuilder : EditorWindow
 			appName = "MyApp";
 		}
 		
+		// Store original product name to restore later
+		string originalProductName = PlayerSettings.productName;
+		
+		// For Android, set the product name which affects the displayed app name
+		if (settings.selectedPlatform == BuildPlatform.Android)
+		{
+			PlayerSettings.productName = appName;
+		}
+		
 		// Create platform-specific build path
 		string platformName = "";
 		string buildPath = "";
@@ -533,22 +542,12 @@ public class PlatformBuilder : EditorWindow
 				break;
 		}
 		
-		// Setup build player options
-		BuildPlayerOptions buildPlayerOptions = new BuildPlayerOptions();
-		buildPlayerOptions.locationPathName = buildPath;
-		buildPlayerOptions.target = buildTarget;
-		buildPlayerOptions.options = settings.isDebugBuild ? BuildOptions.Development : BuildOptions.None;
-		
-		if (settings.autoRunPlayer)
-		{
-			buildPlayerOptions.options |= BuildOptions.AutoRunPlayer;
-		}
-		
-		// Set scenes
+		// Get scenes to build
+		string[] scenesToBuild;
 		if (settings.currentSceneOnly)
 		{
 			var currentScene = SceneManager.GetActiveScene();
-			buildPlayerOptions.scenes = new[] { currentScene.path };
+			scenesToBuild = new[] { currentScene.path };
 		}
 		else
 		{
@@ -556,21 +555,97 @@ public class PlatformBuilder : EditorWindow
 			if (selectedScenes.Length == 0)
 			{
 				EditorUtility.DisplayDialog("No Scenes Selected", "Please select at least one scene to build.", "OK");
+				// Restore original product name before returning
+				if (settings.selectedPlatform == BuildPlatform.Android)
+				{
+					PlayerSettings.productName = originalProductName;
+				}
 				return;
 			}
-			buildPlayerOptions.scenes = selectedScenes;
+			scenesToBuild = selectedScenes;
 		}
 		
+		// Update EditorBuildSettings to ensure proper scene order and inclusion
+		List<EditorBuildSettingsScene> buildSettingsScenes = new List<EditorBuildSettingsScene>();
+		for (int i = 0; i < scenesToBuild.Length; i++)
+		{
+			buildSettingsScenes.Add(new EditorBuildSettingsScene(scenesToBuild[i], true));
+		}
+		EditorBuildSettings.scenes = buildSettingsScenes.ToArray();
+		
+		// Setup build player options
+		BuildPlayerOptions buildPlayerOptions = new BuildPlayerOptions();
+		buildPlayerOptions.locationPathName = buildPath;
+		buildPlayerOptions.target = buildTarget;
+		buildPlayerOptions.scenes = scenesToBuild;
+		
+		// Set build options
+		BuildOptions buildOptions = BuildOptions.None;
+		if (settings.isDebugBuild)
+		{
+			buildOptions |= BuildOptions.Development;
+		}
+		
+		// For Android, add additional options to help with installation
+		if (settings.selectedPlatform == BuildPlatform.Android)
+		{
+			// Development builds are easier to install and debug
+			if (settings.isDebugBuild)
+			{
+				buildOptions |= BuildOptions.Development | BuildOptions.AllowDebugging;
+			}
+		}
+		
+		if (settings.autoRunPlayer)
+		{
+			buildOptions |= BuildOptions.AutoRunPlayer;
+		}
+		
+		buildPlayerOptions.options = buildOptions;
+		
 		Debug.Log($"Building for {settings.selectedPlatform} to: {buildPath}");
+		Debug.Log($"Scenes to build ({scenesToBuild.Length}): {string.Join(", ", scenesToBuild.Select(s => Path.GetFileNameWithoutExtension(s)))}");
 		
 		BuildReport report = BuildPipeline.BuildPlayer(buildPlayerOptions);
 		BuildSummary summary = report.summary;
+		
+		// Restore original product name after build
+		if (settings.selectedPlatform == BuildPlatform.Android)
+		{
+			PlayerSettings.productName = originalProductName;
+		}
 		
 		if (summary.result == BuildResult.Succeeded)
 		{
 			Debug.Log($"Build succeeded: {summary.outputPath}");
 			
-			if (!settings.autoRunPlayer)
+			// For Android, provide additional information
+			if (settings.selectedPlatform == BuildPlatform.Android)
+			{
+				string message = $"Android build completed successfully!\n\nPath: {summary.outputPath}\n\n";
+				if (settings.isDebugBuild)
+				{
+					message += "Note: This is a development build which should install easier on your device.\n\n";
+				}
+				else
+				{
+					message += "Note: For easier installation during development, consider using 'Debug Build' option.\n\n";
+				}
+				message += "Open build folder?";
+				
+				if (!settings.autoRunPlayer)
+				{
+					if (EditorUtility.DisplayDialog("Android Build Complete", message, "Yes", "No"))
+					{
+						string folderToOpen = Path.GetDirectoryName(summary.outputPath);
+						if (Directory.Exists(folderToOpen))
+						{
+							Process.Start(folderToOpen);
+						}
+					}
+				}
+			}
+			else if (!settings.autoRunPlayer)
 			{
 				if (EditorUtility.DisplayDialog("Build Complete", $"Build completed successfully!\n\nPath: {summary.outputPath}\n\nOpen build folder?", "Yes", "No"))
 				{
@@ -578,9 +653,6 @@ public class PlatformBuilder : EditorWindow
 					string folderToOpen = "";
 					switch (settings.selectedPlatform)
 					{
-						case BuildPlatform.Android:
-							folderToOpen = Path.GetDirectoryName(summary.outputPath);
-							break;
 						case BuildPlatform.WebGL:
 							folderToOpen = summary.outputPath;
 							break;
