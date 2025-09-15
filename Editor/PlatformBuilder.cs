@@ -55,6 +55,7 @@ public class PlatformBuilder : EditorWindow
 {
 	private static PlatformBuilderSettings settings;
 	private const string SETTINGS_KEY = "PlatformBuilder_Settings";
+	private static string SettingsFilePath => Path.Combine(Application.dataPath, "Editor/PlatformBuilderSettings.json");
 	
 	// Scene selection variables
 	List<SceneInfo> allScenes = new List<SceneInfo>();
@@ -129,38 +130,66 @@ public class PlatformBuilder : EditorWindow
 
 	void LoadSettings()
 	{
-		// Ensure settings is never null
 		if (settings == null)
 		{
 			settings = new PlatformBuilderSettings();
 		}
-		
-		string json = EditorPrefs.GetString(SETTINGS_KEY, "");
-		if (!string.IsNullOrEmpty(json))
+
+		// Try to load from file
+		if (File.Exists(SettingsFilePath))
 		{
 			try
 			{
+				string json = File.ReadAllText(SettingsFilePath);
 				var loadedSettings = JsonUtility.FromJson<PlatformBuilderSettings>(json);
 				if (loadedSettings != null)
 				{
 					settings = loadedSettings;
 				}
 			}
-			catch (System.Exception e)
+			catch (Exception e)
 			{
-				Debug.LogWarning($"Failed to load PlatformBuilder settings: {e.Message}");
+				Debug.LogWarning($"Failed to load PlatformBuilder settings from file: {e.Message}");
 				settings = new PlatformBuilderSettings();
+			}
+		}
+		else
+		{
+			// Migrate from EditorPrefs if present (legacy)
+			string json = EditorPrefs.GetString(SETTINGS_KEY, "");
+			if (!string.IsNullOrEmpty(json))
+			{
+				try
+				{
+					var loadedSettings = JsonUtility.FromJson<PlatformBuilderSettings>(json);
+					if (loadedSettings != null)
+					{
+						settings = loadedSettings;
+						SaveSettings(); // Save to file for future use
+						EditorPrefs.DeleteKey(SETTINGS_KEY);
+					}
+				}
+				catch (Exception e)
+				{
+					Debug.LogWarning($"Failed to migrate PlatformBuilder settings: {e.Message}");
+					settings = new PlatformBuilderSettings();
+				}
 			}
 		}
 	}
 
 	void SaveSettings()
 	{
-		// Update settings with current scene info
 		settings.sceneSettings = allScenes.ToList();
-		
-		string json = JsonUtility.ToJson(settings, true);
-		EditorPrefs.SetString(SETTINGS_KEY, json);
+		try
+		{
+			string json = JsonUtility.ToJson(settings, true);
+			File.WriteAllText(SettingsFilePath, json);
+		}
+		catch (Exception e)
+		{
+			Debug.LogWarning($"Failed to save PlatformBuilder settings: {e.Message}");
+		}
 	}
 
 	void RefreshSceneList()
