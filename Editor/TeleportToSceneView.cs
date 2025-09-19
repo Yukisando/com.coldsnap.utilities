@@ -26,7 +26,7 @@ public class TeleportPlayerOnPlay
         Debug.Log(isTeleportEnabled ? "Teleport on Play enabled" : "Teleport on Play disabled");
     }
 
-    [MenuItem("ColdSnap/Tools/Toggle Teleport Player On Play", true)]
+    [MenuItem("ColdSnap/Tools/Toggle Teleport Player On Play", false)]
     static bool ToggleTeleportOnPlayValidate() {
         Menu.SetChecked("ColdSnap/Tools/Toggle Teleport Player On Play", isTeleportEnabled);
         return true;

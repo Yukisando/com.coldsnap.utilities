@@ -298,6 +298,18 @@ public class PlatformBuilder : EditorWindow
 			}
 		}
 		
+		if (!string.IsNullOrEmpty(settings.buildFolderPath) && GUILayout.Button("Open", GUILayout.Width(50)))
+		{
+			if (Directory.Exists(settings.buildFolderPath))
+			{
+				Process.Start(settings.buildFolderPath);
+			}
+			else
+			{
+				EditorUtility.DisplayDialog("Folder Not Found", $"The build folder '{settings.buildFolderPath}' no longer exists.", "OK");
+			}
+		}
+		
 		if (!string.IsNullOrEmpty(settings.buildFolderPath) && GUILayout.Button("Clear", GUILayout.Width(50)))
 		{
 			settings.buildFolderPath = "";
