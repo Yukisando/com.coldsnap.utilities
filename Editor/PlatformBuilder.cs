@@ -47,8 +47,9 @@ public class PlatformBuilderSettings
 	public bool autoRunPlayer;
 	public bool currentSceneOnly = true;
 	public string appName = "";
-	public bool useCustomAppName = false; // New toggle for custom app name
-	public string buildFolderPath = ""; // Remember the base build folder location
+	public bool useCustomAppName = false;
+	public bool forceLowercase = false;
+	public string buildFolderPath = "";
 }
 
 public class PlatformBuilder : EditorWindow
@@ -263,15 +264,6 @@ public class PlatformBuilder : EditorWindow
 		settings.isDebugBuild = EditorGUILayout.Toggle("Debug Build", settings.isDebugBuild);
 		settings.autoRunPlayer = EditorGUILayout.Toggle("Auto Run Player", settings.autoRunPlayer);
 		
-		bool previousCurrentSceneOnly = settings.currentSceneOnly;
-		settings.currentSceneOnly = EditorGUILayout.Toggle("Current Scene Only", settings.currentSceneOnly);
-		
-		// Update window size if scene selection mode changed
-		if (previousCurrentSceneOnly != settings.currentSceneOnly)
-		{
-			UpdateWindowSize();
-		}
-		
 		EditorGUILayout.Space();
 		
 		// Build folder section
@@ -320,7 +312,10 @@ public class PlatformBuilder : EditorWindow
 		EditorGUILayout.Space();
 		
 		// App name section - fixed layout
+		EditorGUILayout.BeginHorizontal();
 		settings.useCustomAppName = EditorGUILayout.Toggle("Use Custom App Name", settings.useCustomAppName);
+		settings.forceLowercase = EditorGUILayout.Toggle("Force Lowercase", settings.forceLowercase);
+		EditorGUILayout.EndHorizontal();
 		
 		GUI.enabled = settings.useCustomAppName;
 		if (settings.useCustomAppName)
@@ -338,9 +333,20 @@ public class PlatformBuilder : EditorWindow
 		
 		EditorGUILayout.Space();
 		
+		// Current Scene Only toggle moved closer to scene section
+		bool previousCurrentSceneOnly = settings.currentSceneOnly;
+		settings.currentSceneOnly = EditorGUILayout.Toggle("Current Scene Only", settings.currentSceneOnly);
+		
+		// Update window size if scene selection mode changed
+		if (previousCurrentSceneOnly != settings.currentSceneOnly)
+		{
+			UpdateWindowSize();
+		}
+		
 		// Scene selection section
 		if (!settings.currentSceneOnly)
 		{
+			EditorGUILayout.Space();
 			GUILayout.Label("Scene Selection & Build Order", EditorStyles.boldLabel);
 			GUILayout.Label("Click and drag the ≡ handle to reorder scenes", EditorStyles.miniLabel);
 			
@@ -528,6 +534,12 @@ public class PlatformBuilder : EditorWindow
 		if (string.IsNullOrEmpty(appName))
 		{
 			appName = "MyApp";
+		}
+		
+		// Apply force lowercase if enabled
+		if (settings.forceLowercase)
+		{
+			appName = appName.ToLower();
 		}
 		
 		// Store original product name to restore later
