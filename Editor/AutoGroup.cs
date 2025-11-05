@@ -4,7 +4,7 @@ using UnityEngine;
 
 public class AutoGroup : EditorWindow
 {
-    [MenuItem("GameObject/Auto Group %g", false, 0)]
+    [MenuItem("ColdSnap/Tools/Auto Group %g", false, 0)]
     static void GroupSelectedObjects()
     {
         var allSelected = Selection.gameObjects;
