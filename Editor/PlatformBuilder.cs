@@ -18,6 +18,7 @@ public enum BuildPlatform
 	Windows,
 	MacOS,
 	Android,
+	AAB,
 	WebGL
 }
 
@@ -101,6 +102,11 @@ public class PlatformBuilder : EditorWindow
 		if (!settings.currentSceneOnly && allScenes.Count > 0)
 		{
 			height += Mathf.Min(allScenes.Count * 25f, 200f) ; // Scene list height + padding
+		}
+		
+		if (settings.selectedPlatform == BuildPlatform.AAB)
+		{
+			height += 400f; // Google Play settings
 		}
 		
 		minSize = new Vector2(width, height);
@@ -256,7 +262,13 @@ public class PlatformBuilder : EditorWindow
 		EditorGUILayout.Space();
 		
 		// Platform selection
+		BuildPlatform previousPlatform = settings.selectedPlatform;
 		settings.selectedPlatform = (BuildPlatform)EditorGUILayout.EnumPopup("Target Platform", settings.selectedPlatform);
+		
+		if (previousPlatform != settings.selectedPlatform)
+		{
+			UpdateWindowSize();
+		}
 		
 		EditorGUILayout.Space();
 		
@@ -415,11 +427,18 @@ public class PlatformBuilder : EditorWindow
 			EditorGUILayout.EndScrollView();
 		}
 		
+		// AAB / Google Play settings
+		if (settings.selectedPlatform == BuildPlatform.AAB)
+		{
+			DrawAABSettings();
+		}
+		
 		EditorGUILayout.Space();
 		
 		// Build button
 		GUI.enabled = true;
-		if (GUILayout.Button("Build", GUILayout.Height(30)))
+		string buildButtonLabel = settings.selectedPlatform == BuildPlatform.AAB ? "Build AAB for Google Play" : "Build";
+		if (GUILayout.Button(buildButtonLabel, GUILayout.Height(30)))
 		{
 			BuildForPlatform();
 		}
@@ -496,6 +515,196 @@ public class PlatformBuilder : EditorWindow
 		}
 	}
 	
+	Vector2 aabScrollPosition;
+	
+	void DrawAABSettings()
+	{
+		EditorGUILayout.Space();
+		GUILayout.Label("── Google Play Production Settings ──", EditorStyles.boldLabel);
+		
+		aabScrollPosition = EditorGUILayout.BeginScrollView(aabScrollPosition, GUILayout.MaxHeight(400));
+		
+		// Signing / Keystore
+		EditorGUILayout.Space();
+		GUILayout.Label("Signing Configuration", EditorStyles.boldLabel);
+		
+		PlayerSettings.Android.useCustomKeystore = EditorGUILayout.Toggle("Use Custom Keystore", PlayerSettings.Android.useCustomKeystore);
+		
+		if (PlayerSettings.Android.useCustomKeystore)
+		{
+			EditorGUILayout.BeginHorizontal();
+			EditorGUILayout.LabelField("Keystore Path:", GUILayout.Width(100));
+			string keystorePath = PlayerSettings.Android.keystoreName;
+			EditorGUILayout.LabelField(string.IsNullOrEmpty(keystorePath) ? "(Not set)" : keystorePath, EditorStyles.miniLabel);
+			if (GUILayout.Button("Browse", GUILayout.Width(60)))
+			{
+				string path = EditorUtility.OpenFilePanel("Select Keystore", "", "keystore,jks,bks");
+				if (!string.IsNullOrEmpty(path))
+				{
+					PlayerSettings.Android.keystoreName = path;
+				}
+			}
+			EditorGUILayout.EndHorizontal();
+			
+			PlayerSettings.Android.keystorePass = EditorGUILayout.PasswordField("Keystore Password", PlayerSettings.Android.keystorePass);
+			PlayerSettings.Android.keyaliasName = EditorGUILayout.TextField("Key Alias", PlayerSettings.Android.keyaliasName);
+			PlayerSettings.Android.keyaliasPass = EditorGUILayout.PasswordField("Key Alias Password", PlayerSettings.Android.keyaliasPass);
+			
+			if (string.IsNullOrEmpty(PlayerSettings.Android.keystoreName))
+			{
+				EditorGUILayout.HelpBox("A signed upload key is required for Google Play uploads. Create one via keytool or Android Studio.", MessageType.Warning);
+			}
+		}
+		else
+		{
+			EditorGUILayout.HelpBox("Custom keystore is required for Google Play. Debug-signed builds cannot be uploaded.", MessageType.Warning);
+		}
+		
+		// Versioning
+		EditorGUILayout.Space();
+		GUILayout.Label("Versioning", EditorStyles.boldLabel);
+		PlayerSettings.bundleVersion = EditorGUILayout.TextField("Version Name", PlayerSettings.bundleVersion);
+		PlayerSettings.Android.bundleVersionCode = EditorGUILayout.IntField("Version Code", PlayerSettings.Android.bundleVersionCode);
+		EditorGUILayout.HelpBox("Version Code must be incremented with each upload to Google Play.", MessageType.Info);
+		
+		// Package Identification
+		EditorGUILayout.Space();
+		GUILayout.Label("Package Identification", EditorStyles.boldLabel);
+		string bundleId = PlayerSettings.GetApplicationIdentifier(BuildTargetGroup.Android);
+		string newBundleId = EditorGUILayout.TextField("Package Name", bundleId);
+		if (newBundleId != bundleId)
+		{
+			PlayerSettings.SetApplicationIdentifier(BuildTargetGroup.Android, newBundleId);
+		}
+		EditorGUILayout.HelpBox("Must match your Google Play Console package name (e.g., com.company.app).", MessageType.Info);
+		
+		// Scripting Backend & Architecture
+		EditorGUILayout.Space();
+		GUILayout.Label("Scripting & Architecture", EditorStyles.boldLabel);
+		
+		var currentBackend = PlayerSettings.GetScriptingBackend(BuildTargetGroup.Android);
+		var newBackend = (ScriptingImplementation)EditorGUILayout.EnumPopup("Scripting Backend", currentBackend);
+		if (newBackend != currentBackend)
+		{
+			PlayerSettings.SetScriptingBackend(BuildTargetGroup.Android, newBackend);
+		}
+		if (currentBackend != ScriptingImplementation.IL2CPP)
+		{
+			EditorGUILayout.HelpBox("IL2CPP is required for Google Play (64-bit support is mandatory).", MessageType.Warning);
+		}
+		
+		var currentArch = PlayerSettings.Android.targetArchitectures;
+		var newArch = (AndroidArchitecture)EditorGUILayout.EnumFlagsField("Target Architectures", currentArch);
+		if (newArch != currentArch)
+		{
+			PlayerSettings.Android.targetArchitectures = newArch;
+		}
+		if ((currentArch & AndroidArchitecture.ARM64) == 0)
+		{
+			EditorGUILayout.HelpBox("ARM64 is required for Google Play Store.", MessageType.Warning);
+		}
+		
+		// SDK Versions
+		EditorGUILayout.Space();
+		GUILayout.Label("SDK Versions", EditorStyles.boldLabel);
+		
+		var currentTargetSdk = PlayerSettings.Android.targetSdkVersion;
+		var newTargetSdk = (AndroidSdkVersions)EditorGUILayout.EnumPopup("Target SDK", currentTargetSdk);
+		if (newTargetSdk != currentTargetSdk)
+		{
+			PlayerSettings.Android.targetSdkVersion = newTargetSdk;
+		}
+		
+		var currentMinSdk = PlayerSettings.Android.minSdkVersion;
+		var newMinSdk = (AndroidSdkVersions)EditorGUILayout.EnumPopup("Min SDK", currentMinSdk);
+		if (newMinSdk != currentMinSdk)
+		{
+			PlayerSettings.Android.minSdkVersion = newMinSdk;
+		}
+		EditorGUILayout.HelpBox("Google Play requires Target SDK to meet their current API level policy.", MessageType.Info);
+		
+		// Optimization
+		EditorGUILayout.Space();
+		GUILayout.Label("Optimization", EditorStyles.boldLabel);
+		PlayerSettings.Android.minifyRelease = EditorGUILayout.Toggle("Minify Release (R8/ProGuard)", PlayerSettings.Android.minifyRelease);
+		
+		EditorGUILayout.EndScrollView();
+	}
+	
+	bool ValidateAABBuild()
+	{
+		List<string> warnings = new List<string>();
+		List<string> errors = new List<string>();
+		
+		// Check IL2CPP
+		var backend = PlayerSettings.GetScriptingBackend(BuildTargetGroup.Android);
+		if (backend != ScriptingImplementation.IL2CPP)
+		{
+			errors.Add("Scripting Backend must be IL2CPP (required for 64-bit Google Play builds).");
+		}
+		
+		// Check ARM64
+		var arch = PlayerSettings.Android.targetArchitectures;
+		if ((arch & AndroidArchitecture.ARM64) == 0)
+		{
+			errors.Add("ARM64 architecture is required for Google Play.");
+		}
+		
+		// Check keystore
+		if (!PlayerSettings.Android.useCustomKeystore)
+		{
+			warnings.Add("No custom keystore configured. Build will use debug signing and cannot be uploaded to Google Play.");
+		}
+		else if (string.IsNullOrEmpty(PlayerSettings.Android.keystoreName))
+		{
+			warnings.Add("Custom keystore is enabled but no keystore file is set.");
+		}
+		
+		// Check package name
+		string packageName = PlayerSettings.GetApplicationIdentifier(BuildTargetGroup.Android);
+		if (string.IsNullOrEmpty(packageName) || packageName == "com.Company.ProductName")
+		{
+			warnings.Add("Package name appears to be default. Update it to match your Google Play Console listing.");
+		}
+		
+		// Check version code
+		if (PlayerSettings.Android.bundleVersionCode <= 0)
+		{
+			warnings.Add("Bundle Version Code should be greater than 0.");
+		}
+		
+		if (errors.Count > 0 || warnings.Count > 0)
+		{
+			string message = "";
+			if (errors.Count > 0)
+			{
+				message += "ERRORS (must fix before building):\n\n";
+				foreach (var error in errors)
+					message += "\u2022 " + error + "\n";
+				message += "\n";
+			}
+			if (warnings.Count > 0)
+			{
+				message += "WARNINGS:\n\n";
+				foreach (var warning in warnings)
+					message += "\u2022 " + warning + "\n";
+				message += "\n";
+			}
+			
+			if (errors.Count > 0)
+			{
+				EditorUtility.DisplayDialog("AAB Build Validation Failed", message, "OK");
+				return false;
+			}
+			else
+			{
+				return EditorUtility.DisplayDialog("AAB Build Warnings", message + "Continue with build?", "Build Anyway", "Cancel");
+			}
+		}
+		
+		return true;
+	}
+	
 	void BuildForPlatform()
 	{
 		// Check if build folder is set, if not, ask for it
@@ -545,8 +754,8 @@ public class PlatformBuilder : EditorWindow
 		// Store original product name to restore later
 		string originalProductName = PlayerSettings.productName;
 		
-		// For Android, set the product name which affects the displayed app name
-		if (settings.selectedPlatform == BuildPlatform.Android)
+		// For Android/AAB, set the product name which affects the displayed app name
+		if (settings.selectedPlatform == BuildPlatform.Android || settings.selectedPlatform == BuildPlatform.AAB)
 		{
 			PlayerSettings.productName = appName;
 		}
@@ -579,10 +788,21 @@ public class PlatformBuilder : EditorWindow
 			case BuildPlatform.Android:
 				buildTarget = BuildTarget.Android;
 				platformName = "Android";
+				EditorUserBuildSettings.buildAppBundle = false;
 				// Build/Android/AppName.apk
 				string androidFolder = Path.Combine(settings.buildFolderPath, platformName);
 				Directory.CreateDirectory(androidFolder);
 				buildPath = Path.Combine(androidFolder, appName + ".apk");
+				break;
+				
+			case BuildPlatform.AAB:
+				buildTarget = BuildTarget.Android;
+				platformName = "AAB";
+				EditorUserBuildSettings.buildAppBundle = true;
+				// Build/AAB/AppName.aab
+				string aabFolder = Path.Combine(settings.buildFolderPath, platformName);
+				Directory.CreateDirectory(aabFolder);
+				buildPath = Path.Combine(aabFolder, appName + ".aab");
 				break;
 				
 			case BuildPlatform.WebGL:
@@ -609,7 +829,7 @@ public class PlatformBuilder : EditorWindow
 			{
 				EditorUtility.DisplayDialog("No Scenes Selected", "Please select at least one scene to build.", "OK");
 				// Restore original product name before returning
-				if (settings.selectedPlatform == BuildPlatform.Android)
+				if (settings.selectedPlatform == BuildPlatform.Android || settings.selectedPlatform == BuildPlatform.AAB)
 				{
 					PlayerSettings.productName = originalProductName;
 				}
@@ -639,13 +859,23 @@ public class PlatformBuilder : EditorWindow
 			buildOptions |= BuildOptions.Development;
 		}
 		
-		// For Android, add additional options to help with installation
-		if (settings.selectedPlatform == BuildPlatform.Android)
+		// For Android/AAB, add additional options to help with installation
+		if (settings.selectedPlatform == BuildPlatform.Android || settings.selectedPlatform == BuildPlatform.AAB)
 		{
 			// Development builds are easier to install and debug
 			if (settings.isDebugBuild)
 			{
 				buildOptions |= BuildOptions.Development | BuildOptions.AllowDebugging;
+			}
+		}
+		
+		// Validate AAB settings before building
+		if (settings.selectedPlatform == BuildPlatform.AAB)
+		{
+			if (!ValidateAABBuild())
+			{
+				PlayerSettings.productName = originalProductName;
+				return;
 			}
 		}
 		
@@ -663,7 +893,7 @@ public class PlatformBuilder : EditorWindow
 		BuildSummary summary = report.summary;
 		
 		// Restore original product name after build
-		if (settings.selectedPlatform == BuildPlatform.Android)
+		if (settings.selectedPlatform == BuildPlatform.Android || settings.selectedPlatform == BuildPlatform.AAB)
 		{
 			PlayerSettings.productName = originalProductName;
 		}
@@ -672,8 +902,35 @@ public class PlatformBuilder : EditorWindow
 		{
 			Debug.Log($"Build succeeded: {summary.outputPath}");
 			
-			// For Android, provide additional information
-			if (settings.selectedPlatform == BuildPlatform.Android)
+			// For AAB, provide Google Play specific information
+			if (settings.selectedPlatform == BuildPlatform.AAB)
+			{
+				string message = $"AAB build completed successfully!\n\nPath: {summary.outputPath}\n";
+				message += $"Version: {PlayerSettings.bundleVersion} (Code: {PlayerSettings.Android.bundleVersionCode})\n\n";
+				if (settings.isDebugBuild)
+				{
+					message += "WARNING: This is a development/debug build. Google Play requires release builds for production uploads.\n\n";
+				}
+				else
+				{
+					message += "This build is ready for upload to Google Play Console.\n\n";
+				}
+				message += "Open build folder?";
+				
+				if (!settings.autoRunPlayer)
+				{
+					if (EditorUtility.DisplayDialog("AAB Build Complete", message, "Yes", "No"))
+					{
+						string folderToOpen = Path.GetDirectoryName(summary.outputPath);
+						if (Directory.Exists(folderToOpen))
+						{
+							Process.Start(folderToOpen);
+						}
+					}
+				}
+			}
+			// For Android APK, provide additional information
+			else if (settings.selectedPlatform == BuildPlatform.Android)
 			{
 				string message = $"Android build completed successfully!\n\nPath: {summary.outputPath}\n\n";
 				if (settings.isDebugBuild)
