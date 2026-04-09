@@ -201,7 +201,7 @@ internal static class SceneQuickOpenToolbar
         }
 
         Rect buttonRect = GUILayoutUtility.GetLastRect();
-        PopupWindow.Show(GUIUtility.GUIToScreenRect(buttonRect), new SceneQuickOpenPopupContent());
+        UnityEditor.PopupWindow.Show(GUIUtility.GUIToScreenRect(buttonRect), new SceneQuickOpenPopupContent());
     }
 }
 
