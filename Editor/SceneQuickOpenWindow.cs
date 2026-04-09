@@ -16,6 +16,7 @@ public class SceneQuickOpenWindow : EditorWindow
 {
     private string searchQuery = string.Empty;
     private Vector2 scrollPosition;
+    private bool focusSearchField = true;
 
     [MenuItem("ColdSnap/Scenes/Quick Open %#l", false, 0)]
     private static void ShowWindow()
@@ -27,18 +28,22 @@ public class SceneQuickOpenWindow : EditorWindow
 
     private void OnGUI()
     {
-        SceneQuickOpenGui.Draw(ref searchQuery, ref scrollPosition, true);
+        SceneQuickOpenGui.Draw(ref searchQuery, ref scrollPosition, ref focusSearchField, true);
     }
 }
 
 internal static class SceneQuickOpenGui
 {
-    public static void Draw(ref string searchQuery, ref Vector2 scrollPosition, bool showRefreshButton)
+    private const string SearchFieldControlName = "SceneQuickOpenSearchField";
+
+    public static void Draw(ref string searchQuery, ref Vector2 scrollPosition, ref bool focusSearchField, bool showRefreshButton)
     {
-        DrawToolbar(ref searchQuery, showRefreshButton);
+        DrawToolbar(ref searchQuery, ref focusSearchField, showRefreshButton);
         EditorGUILayout.Space();
 
         List<SceneQuickOpenEntry> scenes = SceneQuickOpenService.GetScenes(searchQuery);
+        HandleKeyboardActions(scenes);
+
         if (scenes.Count == 0)
         {
             string message = string.IsNullOrWhiteSpace(searchQuery)
@@ -56,10 +61,19 @@ internal static class SceneQuickOpenGui
         EditorGUILayout.EndScrollView();
     }
 
-    private static void DrawToolbar(ref string searchQuery, bool showRefreshButton)
+    private static void DrawToolbar(ref string searchQuery, ref bool focusSearchField, bool showRefreshButton)
     {
         EditorGUILayout.BeginHorizontal();
+
+        GUI.SetNextControlName(SearchFieldControlName);
         searchQuery = EditorGUILayout.TextField("Search", searchQuery);
+
+        if (focusSearchField && Event.current.type == EventType.Repaint)
+        {
+            GUI.FocusControl(SearchFieldControlName);
+            EditorGUI.FocusTextInControl(SearchFieldControlName);
+            focusSearchField = false;
+        }
 
         if (showRefreshButton && GUILayout.Button("Refresh", GUILayout.Width(80f)))
         {
@@ -73,6 +87,7 @@ internal static class SceneQuickOpenGui
     {
         bool isActiveScene = SceneManager.GetActiveScene().path == scene.Path;
         bool isLoaded = SceneManager.GetSceneByPath(scene.Path).isLoaded;
+        bool canRemove = isLoaded && SceneQuickOpenService.CanRemoveScene(scene.Path);
 
         EditorGUILayout.BeginVertical(EditorStyles.helpBox);
         EditorGUILayout.BeginHorizontal();
@@ -91,11 +106,18 @@ internal static class SceneQuickOpenGui
             SceneQuickOpenService.OpenSingle(scene.Path);
         }
 
-        using (new EditorGUI.DisabledScope(isLoaded))
+        using (new EditorGUI.DisabledScope(isLoaded && !canRemove))
         {
-            if (GUILayout.Button("+", GUILayout.Width(26f)))
+            if (GUILayout.Button(isLoaded ? "-" : "+", GUILayout.Width(26f)))
             {
-                SceneQuickOpenService.OpenAdditive(scene.Path);
+                if (isLoaded)
+                {
+                    SceneQuickOpenService.RemoveScene(scene.Path);
+                }
+                else
+                {
+                    SceneQuickOpenService.OpenAdditive(scene.Path);
+                }
             }
         }
 
@@ -103,12 +125,39 @@ internal static class SceneQuickOpenGui
         EditorGUILayout.LabelField(scene.Path, EditorStyles.miniLabel);
         EditorGUILayout.EndVertical();
     }
+
+    private static void HandleKeyboardActions(List<SceneQuickOpenEntry> scenes)
+    {
+        Event currentEvent = Event.current;
+        if (currentEvent.type != EventType.KeyDown)
+        {
+            return;
+        }
+
+        if (GUI.GetNameOfFocusedControl() != SearchFieldControlName)
+        {
+            return;
+        }
+
+        if (currentEvent.keyCode != KeyCode.Return && currentEvent.keyCode != KeyCode.KeypadEnter)
+        {
+            return;
+        }
+
+        if (scenes.Count > 0)
+        {
+            SceneQuickOpenService.OpenSingle(scenes[0].Path);
+        }
+
+        currentEvent.Use();
+    }
 }
 
 internal sealed class SceneQuickOpenPopupContent : PopupWindowContent
 {
     private string searchQuery = string.Empty;
     private Vector2 scrollPosition;
+    private bool focusSearchField = true;
 
     public override Vector2 GetWindowSize()
     {
@@ -118,7 +167,7 @@ internal sealed class SceneQuickOpenPopupContent : PopupWindowContent
     public override void OnGUI(Rect rect)
     {
         GUILayout.Space(4f);
-        SceneQuickOpenGui.Draw(ref searchQuery, ref scrollPosition, true);
+        SceneQuickOpenGui.Draw(ref searchQuery, ref scrollPosition, ref focusSearchField, true);
     }
 }
 
@@ -293,6 +342,28 @@ internal static class SceneQuickOpenService
 
         EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Additive);
         PingSceneAsset(scenePath);
+    }
+
+    public static bool CanRemoveScene(string scenePath)
+    {
+        Scene scene = SceneManager.GetSceneByPath(scenePath);
+        if (!scene.isLoaded)
+        {
+            return false;
+        }
+
+        return SceneManager.sceneCount > 1;
+    }
+
+    public static void RemoveScene(string scenePath)
+    {
+        Scene scene = SceneManager.GetSceneByPath(scenePath);
+        if (!scene.isLoaded || !CanRemoveScene(scenePath))
+        {
+            return;
+        }
+
+        EditorSceneManager.CloseScene(scene, true);
     }
 
     private static void EnsureCache()
