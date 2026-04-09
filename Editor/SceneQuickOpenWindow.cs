@@ -5,6 +5,9 @@ using System.Linq;
 using System.Reflection;
 using UnityEditor;
 using UnityEditor.SceneManagement;
+#if UNITY_6000_0_OR_NEWER
+using UnityEditor.Toolbars;
+#endif
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UIElements;
@@ -122,18 +125,52 @@ internal sealed class SceneQuickOpenPopupContent : PopupWindowContent
 [InitializeOnLoad]
 internal static class SceneQuickOpenToolbar
 {
+#if UNITY_6000_0_OR_NEWER
+    private const string ToolbarElementPath = "ColdSnap/Scenes/Quick Open";
+#else
     private const string ToolbarTypeName = "UnityEditor.Toolbar";
     private const string RootFieldName = "m_Root";
     private const string RightZoneName = "ToolbarZoneRightAlign";
     private const string ContainerName = "ColdSnapSceneQuickOpenToolbar";
 
-    private static ScriptableObject toolbarInstance;
     private static IMGUIContainer toolbarContainer;
+#endif
 
     static SceneQuickOpenToolbar()
     {
+#if UNITY_6000_0_OR_NEWER
+        EditorApplication.projectChanged += RefreshToolbar;
+        EditorBuildSettings.sceneListChanged += RefreshToolbar;
+        EditorSceneManager.activeSceneChangedInEditMode += OnActiveSceneChanged;
+#else
         EditorApplication.update += TryAttachToToolbar;
+#endif
     }
+
+#if UNITY_6000_0_OR_NEWER
+    [MainToolbarElement(ToolbarElementPath, defaultDockPosition = MainToolbarDockPosition.Right)]
+    public static MainToolbarElement CreateMainToolbarDropdown()
+    {
+        Texture2D icon = EditorGUIUtility.IconContent("SceneAsset Icon").image as Texture2D;
+        MainToolbarContent content = new MainToolbarContent("Scenes", icon, "Open or add scenes quickly.");
+        return new MainToolbarDropdown(content, ShowMainToolbarDropdown);
+    }
+
+    private static void ShowMainToolbarDropdown(Rect dropDownRect)
+    {
+        UnityEditor.PopupWindow.Show(dropDownRect, new SceneQuickOpenPopupContent());
+    }
+
+    private static void RefreshToolbar()
+    {
+        MainToolbar.Refresh(ToolbarElementPath);
+    }
+
+    private static void OnActiveSceneChanged(Scene previousScene, Scene nextScene)
+    {
+        RefreshToolbar();
+    }
+#else
 
     private static void TryAttachToToolbar()
     {
@@ -176,7 +213,6 @@ internal static class SceneQuickOpenToolbar
         IMGUIContainer existingContainer = rightZone.Q<IMGUIContainer>(ContainerName);
         if (existingContainer != null)
         {
-            toolbarInstance = toolbar;
             toolbarContainer = existingContainer;
             return;
         }
@@ -188,7 +224,6 @@ internal static class SceneQuickOpenToolbar
         toolbarContainer.style.flexShrink = 0;
         toolbarContainer.style.marginLeft = 6f;
         rightZone.Add(toolbarContainer);
-        toolbarInstance = toolbar;
     }
 
     private static void DrawToolbarButton()
@@ -203,6 +238,7 @@ internal static class SceneQuickOpenToolbar
         Rect buttonRect = GUILayoutUtility.GetLastRect();
         UnityEditor.PopupWindow.Show(GUIUtility.GUIToScreenRect(buttonRect), new SceneQuickOpenPopupContent());
     }
+#endif
 }
 
 internal static class SceneQuickOpenService
