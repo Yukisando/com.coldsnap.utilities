@@ -1,17 +1,17 @@
 {
-    "name": "com.coldsnap.utilities",
-    "version": "20260409.0.0",
-    "displayName": "ColdSnap Utilities",
-    "description": "A collection of reusable Unity scripts and utilities.",
-    "unity": "2020.3",
-    "author": {
-        "name": "Nathan De Castro",
-        "email": "decastronathan@gmail.com",
-        "url": "https://nathandecastro.com"
-    },
-    "keywords": [
-        "utilities",
-        "tools",
-        "runtime"
-    ]
+  "name": "com.coldsnap.utilities",
+  "version": "20260409.1.0",
+  "displayName": "ColdSnap Utilities",
+  "description": "A collection of reusable Unity scripts and utilities.",
+  "unity": "2020.3",
+  "author": {
+    "name": "Nathan De Castro",
+    "email": "decastronathan@gmail.com",
+    "url": "https://nathandecastro.com"
+  },
+  "keywords": [
+    "utilities",
+    "tools",
+    "runtime"
+  ]
 }
