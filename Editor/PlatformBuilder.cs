@@ -8,6 +8,7 @@ using System.Linq;
 using UnityEditor;
 using UnityEditor.Build.Reporting;
 using UnityEngine;
+using System.IO.Compression;
 using UnityEngine.SceneManagement;
 using Debug = UnityEngine.Debug;
 
@@ -66,6 +67,9 @@ public class PlatformBuilder : EditorWindow
 	// Drag and drop variables
 	private int draggedIndex = -1;
 	private bool isDragging = false;
+
+	// Build state
+	private bool _isBuildingOrZipping = false;
 
 	[MenuItem("ColdSnap/Platform Builder #&B")]
 	static void ShowWindow()
@@ -434,14 +438,31 @@ public class PlatformBuilder : EditorWindow
 		}
 		
 		EditorGUILayout.Space();
-		
-		// Build button
-		GUI.enabled = true;
+
+		// Spinner while building/zipping
+		if (_isBuildingOrZipping)
+		{
+			int spinFrame = Mathf.FloorToInt((float)(EditorApplication.timeSinceStartup * 8)) % 8;
+			string[] spinFrames = { "|", "/", "-", "\\", "|", "/", "-", "\\" };
+			var spinStyle = new GUIStyle(EditorStyles.centeredGreyMiniLabel) { fontSize = 11 };
+			EditorGUILayout.LabelField(spinFrames[spinFrame] + "  Working...", spinStyle, GUILayout.Height(18));
+			Repaint();
+		}
+
+		// Build buttons
+		GUI.enabled = !_isBuildingOrZipping;
 		string buildButtonLabel = settings.selectedPlatform == BuildPlatform.AAB ? "Build AAB for Google Play" : "Build";
+		EditorGUILayout.BeginHorizontal();
 		if (GUILayout.Button(buildButtonLabel, GUILayout.Height(30)))
 		{
-			BuildForPlatform();
+			BuildForPlatform(false);
 		}
+		if (GUILayout.Button("Build & Zip to Desktop", GUILayout.Height(30)))
+		{
+			BuildForPlatform(true);
+		}
+		EditorGUILayout.EndHorizontal();
+		GUI.enabled = true;
 	}
 	
 	void HandleDragAndDrop(Rect dragRect, int index)
@@ -705,7 +726,25 @@ public class PlatformBuilder : EditorWindow
 		return true;
 	}
 	
-	void BuildForPlatform()
+	void BuildForPlatform(bool zipToDesktop = false)
+	{
+		_isBuildingOrZipping = true;
+		Repaint();
+		string zipSource = "";
+		bool zipIsDirectory = false;
+		try
+		{
+		DoBuild(zipToDesktop, ref zipSource, ref zipIsDirectory);
+		}
+		finally
+		{
+			EditorUtility.ClearProgressBar();
+			_isBuildingOrZipping = false;
+			Repaint();
+		}
+	}
+
+	void DoBuild(bool zipToDesktop, ref string zipSource, ref bool zipIsDirectory)
 	{
 		// Check if build folder is set, if not, ask for it
 		if (string.IsNullOrEmpty(settings.buildFolderPath))
@@ -774,6 +813,8 @@ public class PlatformBuilder : EditorWindow
 				string windowsFolder = Path.Combine(settings.buildFolderPath, platformName, appName);
 				Directory.CreateDirectory(windowsFolder);
 				buildPath = Path.Combine(windowsFolder, appName + ".exe");
+				zipSource = windowsFolder;
+				zipIsDirectory = true;
 				break;
 				
 			case BuildPlatform.MacOS:
@@ -783,6 +824,8 @@ public class PlatformBuilder : EditorWindow
 				string macFolder = Path.Combine(settings.buildFolderPath, platformName, appName);
 				Directory.CreateDirectory(macFolder);
 				buildPath = Path.Combine(macFolder, appName + ".app");
+				zipSource = macFolder;
+				zipIsDirectory = true;
 				break;
 				
 			case BuildPlatform.Android:
@@ -793,6 +836,8 @@ public class PlatformBuilder : EditorWindow
 				string androidFolder = Path.Combine(settings.buildFolderPath, platformName);
 				Directory.CreateDirectory(androidFolder);
 				buildPath = Path.Combine(androidFolder, appName + ".apk");
+				zipSource = buildPath;
+				zipIsDirectory = false;
 				break;
 				
 			case BuildPlatform.AAB:
@@ -803,6 +848,8 @@ public class PlatformBuilder : EditorWindow
 				string aabFolder = Path.Combine(settings.buildFolderPath, platformName);
 				Directory.CreateDirectory(aabFolder);
 				buildPath = Path.Combine(aabFolder, appName + ".aab");
+				zipSource = buildPath;
+				zipIsDirectory = false;
 				break;
 				
 			case BuildPlatform.WebGL:
@@ -812,6 +859,8 @@ public class PlatformBuilder : EditorWindow
 				string webglFolder = Path.Combine(settings.buildFolderPath, platformName, appName);
 				Directory.CreateDirectory(webglFolder);
 				buildPath = webglFolder;
+				zipSource = webglFolder;
+				zipIsDirectory = true;
 				break;
 		}
 		
@@ -888,6 +937,9 @@ public class PlatformBuilder : EditorWindow
 		
 		Debug.Log($"Building for {settings.selectedPlatform} to: {buildPath}");
 		Debug.Log($"Scenes to build ({scenesToBuild.Length}): {string.Join(", ", scenesToBuild.Select(s => Path.GetFileNameWithoutExtension(s)))}");
+
+		if (zipToDesktop)
+			EditorUtility.DisplayProgressBar("Build & Zip to Desktop", "Building project...", 0.15f);
 		
 		BuildReport report = BuildPipeline.BuildPlayer(buildPlayerOptions);
 		BuildSummary summary = report.summary;
@@ -901,7 +953,32 @@ public class PlatformBuilder : EditorWindow
 		if (summary.result == BuildResult.Succeeded)
 		{
 			Debug.Log($"Build succeeded: {summary.outputPath}");
-			
+
+			if (zipToDesktop)
+			{
+				EditorUtility.DisplayProgressBar("Build & Zip to Desktop", "Creating ZIP archive...", 0.85f);
+				try
+				{
+					string zipPath = ZipBuildToDesktop(appName, zipSource, zipIsDirectory);
+					EditorUtility.ClearProgressBar();
+					if (EditorUtility.DisplayDialog("Build & Zip Complete",
+						$"Build and zip completed!\n\nZIP saved to:\n{zipPath}",
+						"Open Desktop", "Close"))
+					{
+						string desktopPath = Path.GetDirectoryName(zipPath);
+						if (Directory.Exists(desktopPath))
+							Process.Start(desktopPath);
+					}
+				}
+				catch (Exception zipEx)
+				{
+					EditorUtility.ClearProgressBar();
+					EditorUtility.DisplayDialog("Zip Failed",
+						$"Build succeeded but zipping failed:\n\n{zipEx.Message}", "OK");
+				}
+			}
+			else
+			{
 			// For AAB, provide Google Play specific information
 			if (settings.selectedPlatform == BuildPlatform.AAB)
 			{
@@ -977,10 +1054,35 @@ public class PlatformBuilder : EditorWindow
 					}
 				}
 			}
+			} // end else (!zipToDesktop)
 		}
 		else if (summary.result == BuildResult.Failed)
 		{
 			Debug.LogError("Build failed");
 		}
+	}
+
+	string ZipBuildToDesktop(string appName, string source, bool isDirectory)
+	{
+		string desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+		string zipFileName = $"{appName}_{settings.selectedPlatform}.zip";
+		string zipFilePath = Path.Combine(desktopPath, zipFileName);
+
+		if (File.Exists(zipFilePath))
+			File.Delete(zipFilePath);
+
+		if (isDirectory)
+		{
+			ZipFile.CreateFromDirectory(source, zipFilePath, CompressionLevel.Optimal, false);
+		}
+		else
+		{
+			using (var archive = ZipFile.Open(zipFilePath, ZipArchiveMode.Create))
+			{
+				archive.CreateEntryFromFile(source, Path.GetFileName(source), CompressionLevel.Optimal);
+			}
+		}
+
+		return zipFilePath;
 	}
 }
