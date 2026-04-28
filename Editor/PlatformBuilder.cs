@@ -1073,13 +1073,13 @@ public class PlatformBuilder : EditorWindow
 
 		if (isDirectory)
 		{
-			ZipFile.CreateFromDirectory(source, zipFilePath, CompressionLevel.Optimal, false);
+			ZipFile.CreateFromDirectory(source, zipFilePath, System.IO.Compression.CompressionLevel.Optimal, false);
 		}
 		else
 		{
 			using (var archive = ZipFile.Open(zipFilePath, ZipArchiveMode.Create))
 			{
-				archive.CreateEntryFromFile(source, Path.GetFileName(source), CompressionLevel.Optimal);
+				archive.CreateEntryFromFile(source, Path.GetFileName(source), System.IO.Compression.CompressionLevel.Optimal);
 			}
 		}
 
