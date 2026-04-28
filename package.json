@@ -1,6 +1,6 @@
 {
   "name": "com.coldsnap.utilities",
-  "version": "20260428.0.0",
+  "version": "20260428.1.0",
   "displayName": "ColdSnap Utilities",
   "description": "A collection of reusable Unity scripts and utilities.",
   "unity": "2020.3",
