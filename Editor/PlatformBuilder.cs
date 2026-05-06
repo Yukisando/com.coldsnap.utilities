@@ -41,9 +41,23 @@ public class SceneInfo
 }
 
 [System.Serializable]
+public class StreamingAssetEntry
+{
+	public string relativePath;
+	public bool isIncluded;
+
+	public StreamingAssetEntry(string path, bool included = true)
+	{
+		relativePath = path;
+		isIncluded = included;
+	}
+}
+
+[System.Serializable]
 public class PlatformBuilderSettings
 {
 	public List<SceneInfo> sceneSettings = new List<SceneInfo>();
+	public List<StreamingAssetEntry> streamingAssetSettings = new List<StreamingAssetEntry>();
 	public BuildPlatform selectedPlatform = BuildPlatform.Windows;
 	public bool isDebugBuild;
 	public bool autoRunPlayer;
@@ -63,7 +77,12 @@ public class PlatformBuilder : EditorWindow
 	// Scene selection variables
 	List<SceneInfo> allScenes = new List<SceneInfo>();
 	Vector2 sceneScrollPosition;
-	
+
+	// Streaming Assets variables
+	private List<StreamingAssetEntry> allStreamingAssets = new List<StreamingAssetEntry>();
+	private Vector2 streamingAssetsScrollPosition;
+	private bool showStreamingAssets = true;
+
 	// Drag and drop variables
 	private int draggedIndex = -1;
 	private bool isDragging = false;
@@ -89,6 +108,7 @@ public class PlatformBuilder : EditorWindow
 		
 		LoadSettings();
 		RefreshSceneList();
+		RefreshStreamingAssets();
 		UpdateWindowSize();
 	}
 
@@ -192,6 +212,7 @@ public class PlatformBuilder : EditorWindow
 	void SaveSettings()
 	{
 		settings.sceneSettings = allScenes.ToList();
+		settings.streamingAssetSettings = allStreamingAssets.ToList();
 		try
 		{
 			string json = JsonUtility.ToJson(settings, true);
@@ -238,6 +259,28 @@ public class PlatformBuilder : EditorWindow
 		for (int i = 0; i < allScenes.Count; i++)
 		{
 			allScenes[i].buildOrder = i;
+		}
+	}
+
+	void RefreshStreamingAssets()
+	{
+		allStreamingAssets.Clear();
+		string streamingPath = Application.streamingAssetsPath;
+
+		if (!Directory.Exists(streamingPath))
+			return;
+
+		var files = Directory.GetFiles(streamingPath, "*", SearchOption.AllDirectories)
+			.Where(f => !f.EndsWith(".meta"))
+			.OrderBy(f => f)
+			.ToList();
+
+		foreach (string filePath in files)
+		{
+			string rel = filePath.Substring(streamingPath.Length).TrimStart('\\', '/');
+			var saved = settings.streamingAssetSettings?.FirstOrDefault(s => s.relativePath == rel);
+			bool included = saved?.isIncluded ?? true;
+			allStreamingAssets.Add(new StreamingAssetEntry(rel, included));
 		}
 	}
 
@@ -430,7 +473,9 @@ public class PlatformBuilder : EditorWindow
 			
 			EditorGUILayout.EndScrollView();
 		}
-		
+
+		DrawStreamingAssetsSection();
+
 		// AAB / Google Play settings
 		if (settings.selectedPlatform == BuildPlatform.AAB)
 		{
@@ -535,9 +580,77 @@ public class PlatformBuilder : EditorWindow
 			EditorGUIUtility.AddCursorRect(dragRect, MouseCursor.MoveArrow);
 		}
 	}
-	
+
+	void DrawStreamingAssetsSection()
+	{
+		EditorGUILayout.Space();
+		showStreamingAssets = EditorGUILayout.Foldout(showStreamingAssets, "Streaming Assets", true);
+
+		if (!showStreamingAssets)
+			return;
+
+		if (allStreamingAssets.Count == 0)
+		{
+			EditorGUILayout.BeginHorizontal();
+			EditorGUILayout.HelpBox("No files found in StreamingAssets.", MessageType.None);
+			if (GUILayout.Button("Refresh", GUILayout.Width(60)))
+			{
+				RefreshStreamingAssets();
+				Repaint();
+			}
+			EditorGUILayout.EndHorizontal();
+			return;
+		}
+
+		EditorGUILayout.BeginHorizontal();
+		if (GUILayout.Button("Include All"))
+		{
+			foreach (var entry in allStreamingAssets)
+				entry.isIncluded = true;
+			SaveSettings();
+		}
+		if (GUILayout.Button("Exclude All"))
+		{
+			foreach (var entry in allStreamingAssets)
+				entry.isIncluded = false;
+			SaveSettings();
+		}
+		if (GUILayout.Button("Refresh", GUILayout.Width(60)))
+		{
+			RefreshStreamingAssets();
+			Repaint();
+		}
+		EditorGUILayout.EndHorizontal();
+
+		EditorGUILayout.Space();
+
+		streamingAssetsScrollPosition = EditorGUILayout.BeginScrollView(streamingAssetsScrollPosition, GUILayout.MaxHeight(150));
+
+		foreach (var entry in allStreamingAssets)
+		{
+			bool wasIncluded = entry.isIncluded;
+			EditorGUILayout.BeginHorizontal();
+			entry.isIncluded = EditorGUILayout.Toggle(entry.isIncluded, GUILayout.Width(20));
+			if (wasIncluded != entry.isIncluded)
+				SaveSettings();
+			if (!entry.isIncluded)
+				GUI.color = new Color(1f, 1f, 1f, 0.4f);
+			EditorGUILayout.LabelField(entry.relativePath, EditorStyles.miniLabel);
+			GUI.color = Color.white;
+			EditorGUILayout.EndHorizontal();
+		}
+
+		EditorGUILayout.EndScrollView();
+
+		int excludedCount = allStreamingAssets.Count(e => !e.isIncluded);
+		if (excludedCount > 0)
+		{
+			EditorGUILayout.HelpBox($"{excludedCount} file(s) will be excluded from this build.", MessageType.Info);
+		}
+	}
+
 	Vector2 aabScrollPosition;
-	
+
 	void DrawAABSettings()
 	{
 		EditorGUILayout.Space();
@@ -938,11 +1051,73 @@ public class PlatformBuilder : EditorWindow
 		Debug.Log($"Building for {settings.selectedPlatform} to: {buildPath}");
 		Debug.Log($"Scenes to build ({scenesToBuild.Length}): {string.Join(", ", scenesToBuild.Select(s => Path.GetFileNameWithoutExtension(s)))}");
 
-		if (zipToDesktop)
-			EditorUtility.DisplayProgressBar("Build & Zip to Desktop", "Building project...", 0.15f);
-		
-		BuildReport report = BuildPipeline.BuildPlayer(buildPlayerOptions);
-		BuildSummary summary = report.summary;
+		// Temporarily move excluded streaming assets out of the project before building
+		var movedFiles = new List<(string src, string dst)>();
+		string saBackupDir = null;
+		var excludedAssets = allStreamingAssets.Where(e => !e.isIncluded).ToList();
+		if (excludedAssets.Count > 0)
+		{
+			string streamingPath = Application.streamingAssetsPath;
+			if (Directory.Exists(streamingPath))
+			{
+				saBackupDir = Path.Combine(Path.GetTempPath(), "PBSABackup_" + Guid.NewGuid().ToString("N").Substring(0, 8));
+				Directory.CreateDirectory(saBackupDir);
+				foreach (var entry in excludedAssets)
+				{
+					string src = Path.Combine(streamingPath, entry.relativePath);
+					if (File.Exists(src))
+					{
+						string dst = Path.Combine(saBackupDir, entry.relativePath);
+						string dstDir = Path.GetDirectoryName(dst);
+						if (dstDir != null) Directory.CreateDirectory(dstDir);
+						File.Move(src, dst);
+						movedFiles.Add((src, dst));
+						string srcMeta = src + ".meta";
+						string dstMeta = dst + ".meta";
+						if (File.Exists(srcMeta))
+						{
+							File.Move(srcMeta, dstMeta);
+							movedFiles.Add((srcMeta, dstMeta));
+						}
+					}
+				}
+				if (movedFiles.Count > 0)
+					AssetDatabase.Refresh();
+			}
+		}
+
+		BuildReport report = null;
+		BuildSummary summary = default(BuildSummary);
+		try
+		{
+			if (zipToDesktop)
+				EditorUtility.DisplayProgressBar("Build & Zip to Desktop", "Building project...", 0.15f);
+
+			report = BuildPipeline.BuildPlayer(buildPlayerOptions);
+			summary = report.summary;
+		}
+		finally
+		{
+			// Restore excluded streaming assets regardless of build outcome
+			foreach (var (src, dst) in movedFiles)
+			{
+				try
+				{
+					if (File.Exists(dst) && !File.Exists(src))
+						File.Move(dst, src);
+				}
+				catch (Exception restoreEx)
+				{
+					Debug.LogWarning($"Failed to restore streaming asset '{dst}': {restoreEx.Message}");
+				}
+			}
+			if (saBackupDir != null && Directory.Exists(saBackupDir))
+			{
+				try { Directory.Delete(saBackupDir, true); } catch { }
+			}
+			if (movedFiles.Count > 0)
+				AssetDatabase.Refresh();
+		}
 		
 		// Restore original product name after build
 		if (settings.selectedPlatform == BuildPlatform.Android || settings.selectedPlatform == BuildPlatform.AAB)
