@@ -66,6 +66,8 @@ public class PlatformBuilderSettings
 	public bool useCustomAppName = false;
 	public bool forceLowercase = false;
 	public string buildFolderPath = "";
+	// New: List of ignored scene paths
+	public List<string> ignoredScenePaths = new List<string>();
 }
 
 public class PlatformBuilder : EditorWindow
@@ -73,10 +75,14 @@ public class PlatformBuilder : EditorWindow
 	private static PlatformBuilderSettings settings;
 	private const string SETTINGS_KEY = "PlatformBuilder_Settings";
 	private static string SettingsFilePath => Path.Combine(Application.dataPath, "Editor/PlatformBuilderSettings.json");
-	
+
 	// Scene selection variables
 	List<SceneInfo> allScenes = new List<SceneInfo>();
 	Vector2 sceneScrollPosition;
+	// New: Show Ignored toggle
+	private bool showIgnoredScenes = false;
+	// For context menu
+	private int contextMenuSceneIndex = -1;
 
 	// Streaming Assets variables
 	private List<StreamingAssetEntry> allStreamingAssets = new List<StreamingAssetEntry>();
@@ -438,40 +444,95 @@ public class PlatformBuilder : EditorWindow
 			
 			EditorGUILayout.Space();
 			
-			// Scene list with scroll and drag-drop
-			sceneScrollPosition = EditorGUILayout.BeginScrollView(sceneScrollPosition, GUILayout.MaxHeight(300));
-			
-			for (int i = 0; i < allScenes.Count; i++)
-			{
-				EditorGUILayout.BeginHorizontal();
-				
-				// Scene selection toggle
-				bool wasSelected = allScenes[i].isSelected;
-				allScenes[i].isSelected = EditorGUILayout.Toggle(allScenes[i].isSelected, GUILayout.Width(20));
-				
-				if (wasSelected != allScenes[i].isSelected)
-				{
-					SaveSettings();
-				}
-				
-				// Drag handle with proper event handling
-				Rect dragRect = GUILayoutUtility.GetRect(20, EditorGUIUtility.singleLineHeight);
-				GUI.Label(dragRect, "≡", EditorStyles.centeredGreyMiniLabel);
-				HandleDragAndDrop(dragRect, i);
-				
-				// Scene name with build order
-				string displayName = $"{i}: {allScenes[i].sceneName}";
-				if (allScenes[i].isSelected)
-				{
-					GUI.color = Color.green;
-				}
-				EditorGUILayout.LabelField(displayName);
-				GUI.color = Color.white;
-				
-				EditorGUILayout.EndHorizontal();
-			}
-			
-			EditorGUILayout.EndScrollView();
+			       // Show Ignored toggle
+			       EditorGUILayout.BeginHorizontal();
+			       showIgnoredScenes = EditorGUILayout.ToggleLeft("Show Ignored", showIgnoredScenes, GUILayout.Width(120));
+			       EditorGUILayout.EndHorizontal();
+
+			       // Scene list with scroll and drag-drop
+			       sceneScrollPosition = EditorGUILayout.BeginScrollView(sceneScrollPosition, GUILayout.MaxHeight(300));
+
+			       // Filter scenes based on ignored list and toggle
+			       for (int i = 0; i < allScenes.Count; i++)
+			       {
+				       bool isIgnored = settings.ignoredScenePaths.Contains(allScenes[i].scenePath);
+				       if (!showIgnoredScenes && isIgnored)
+					       continue;
+
+				       EditorGUILayout.BeginHorizontal();
+
+				       // Scene selection toggle (disabled if ignored)
+				       bool wasSelected = allScenes[i].isSelected;
+				       EditorGUI.BeginDisabledGroup(isIgnored);
+				       allScenes[i].isSelected = EditorGUILayout.Toggle(allScenes[i].isSelected, GUILayout.Width(20));
+				       EditorGUI.EndDisabledGroup();
+
+				       if (wasSelected != allScenes[i].isSelected)
+				       {
+					       SaveSettings();
+				       }
+
+				       // Drag handle with proper event handling
+				       Rect dragRect = GUILayoutUtility.GetRect(20, EditorGUIUtility.singleLineHeight);
+				       GUI.Label(dragRect, "≡", EditorStyles.centeredGreyMiniLabel);
+				       HandleDragAndDrop(dragRect, i);
+
+				       // Scene name with build order
+				       string displayName = $"{i}: {allScenes[i].sceneName}";
+				       if (allScenes[i].isSelected && !isIgnored)
+				       {
+					       GUI.color = Color.green;
+				       }
+				       else if (isIgnored)
+				       {
+					       GUI.color = Color.gray;
+				       }
+				       EditorGUILayout.LabelField(displayName);
+				       GUI.color = Color.white;
+
+				       // Right-click context menu for Ignore/Unignore
+				       Event evt = Event.current;
+				       Rect rowRect = GUILayoutUtility.GetLastRect();
+				       if (evt.type == EventType.ContextClick && rowRect.Contains(evt.mousePosition))
+				       {
+					       contextMenuSceneIndex = i;
+					       GenericMenu menu = new GenericMenu();
+					       if (!isIgnored)
+					       {
+						       menu.AddItem(new GUIContent("Ignore"), false, () => IgnoreScene(allScenes[contextMenuSceneIndex]));
+					       }
+					       else
+					       {
+						       menu.AddItem(new GUIContent("Unignore"), false, () => UnignoreScene(allScenes[contextMenuSceneIndex]));
+					       }
+					       menu.ShowAsContext();
+					       evt.Use();
+				       }
+
+				       EditorGUILayout.EndHorizontal();
+			       }
+
+			       EditorGUILayout.EndScrollView();
+		       // Add methods for ignore/unignore
+		       private void IgnoreScene(SceneInfo scene)
+		       {
+			       if (!settings.ignoredScenePaths.Contains(scene.scenePath))
+			       {
+				       settings.ignoredScenePaths.Add(scene.scenePath);
+				       SaveSettings();
+				       Repaint();
+			       }
+		       }
+
+		       private void UnignoreScene(SceneInfo scene)
+		       {
+			       if (settings.ignoredScenePaths.Contains(scene.scenePath))
+			       {
+				       settings.ignoredScenePaths.Remove(scene.scenePath);
+				       SaveSettings();
+				       Repaint();
+			       }
+		       }
 		}
 
 		DrawStreamingAssetsSection();
@@ -986,18 +1047,22 @@ public class PlatformBuilder : EditorWindow
 		}
 		else
 		{
-			var selectedScenes = allScenes.Where(s => s.isSelected).OrderBy(s => s.buildOrder).Select(s => s.scenePath).ToArray();
-			if (selectedScenes.Length == 0)
-			{
-				EditorUtility.DisplayDialog("No Scenes Selected", "Please select at least one scene to build.", "OK");
-				// Restore original product name before returning
-				if (settings.selectedPlatform == BuildPlatform.Android || settings.selectedPlatform == BuildPlatform.AAB)
-				{
-					PlayerSettings.productName = originalProductName;
-				}
-				return;
-			}
-			scenesToBuild = selectedScenes;
+			       var selectedScenes = allScenes
+				       .Where(s => s.isSelected && !settings.ignoredScenePaths.Contains(s.scenePath))
+				       .OrderBy(s => s.buildOrder)
+				       .Select(s => s.scenePath)
+				       .ToArray();
+			       if (selectedScenes.Length == 0)
+			       {
+				       EditorUtility.DisplayDialog("No Scenes Selected", "Please select at least one scene to build.", "OK");
+				       // Restore original product name before returning
+				       if (settings.selectedPlatform == BuildPlatform.Android || settings.selectedPlatform == BuildPlatform.AAB)
+				       {
+					       PlayerSettings.productName = originalProductName;
+				       }
+				       return;
+			       }
+			       scenesToBuild = selectedScenes;
 		}
 		
 		// Update EditorBuildSettings to ensure proper scene order and inclusion
