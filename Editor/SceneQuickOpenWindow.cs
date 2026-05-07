@@ -38,11 +38,17 @@ internal static class SceneQuickOpenGui
 
     public static void Draw(ref string searchQuery, ref Vector2 scrollPosition, ref bool focusSearchField, bool showRefreshButton)
     {
-        DrawToolbar(ref searchQuery, ref focusSearchField, showRefreshButton);
+        bool enterPressed = false;
+        DrawToolbar(ref searchQuery, ref focusSearchField, showRefreshButton, ref enterPressed);
         EditorGUILayout.Space();
 
         List<SceneQuickOpenEntry> scenes = SceneQuickOpenService.GetScenes(searchQuery);
-        HandleKeyboardActions(scenes);
+
+        if (enterPressed && scenes.Count > 0)
+        {
+            SceneQuickOpenService.OpenSingle(scenes[0].Path);
+            return;
+        }
 
         if (scenes.Count == 0)
         {
@@ -61,9 +67,20 @@ internal static class SceneQuickOpenGui
         EditorGUILayout.EndScrollView();
     }
 
-    private static void DrawToolbar(ref string searchQuery, ref bool focusSearchField, bool showRefreshButton)
+    private static void DrawToolbar(ref string searchQuery, ref bool focusSearchField, bool showRefreshButton, ref bool enterPressed)
     {
         EditorGUILayout.BeginHorizontal();
+
+        // Detect Return before drawing the TextField — the TextField consumes the event
+        // internally, so checking afterwards is unreliable.
+        Event e = Event.current;
+        if (e.type == EventType.KeyDown &&
+            (e.keyCode == KeyCode.Return || e.keyCode == KeyCode.KeypadEnter) &&
+            GUI.GetNameOfFocusedControl() == SearchFieldControlName)
+        {
+            enterPressed = true;
+            e.Use();
+        }
 
         GUI.SetNextControlName(SearchFieldControlName);
         searchQuery = EditorGUILayout.TextField("Search", searchQuery);
@@ -126,31 +143,6 @@ internal static class SceneQuickOpenGui
         EditorGUILayout.EndVertical();
     }
 
-    private static void HandleKeyboardActions(List<SceneQuickOpenEntry> scenes)
-    {
-        Event currentEvent = Event.current;
-        if (currentEvent.type != EventType.KeyDown)
-        {
-            return;
-        }
-
-        if (GUI.GetNameOfFocusedControl() != SearchFieldControlName)
-        {
-            return;
-        }
-
-        if (currentEvent.keyCode != KeyCode.Return && currentEvent.keyCode != KeyCode.KeypadEnter)
-        {
-            return;
-        }
-
-        if (scenes.Count > 0)
-        {
-            SceneQuickOpenService.OpenSingle(scenes[0].Path);
-        }
-
-        currentEvent.Use();
-    }
 }
 
 internal sealed class SceneQuickOpenPopupContent : PopupWindowContent

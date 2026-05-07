@@ -5,16 +5,16 @@ using UnityEngine.UI;
 
 /// <summary>
 /// Intercepts texture/sprite drag-and-drop onto Canvas objects in the Hierarchy and
-/// creates a RawImage instead of Unity's default UI Image (sprite) behaviour.
-/// Toggle via ColdSnap / UI / Drop Image as RawImage (enabled by default).
+/// creates a Image instead of Unity's default UI Image (sprite) behaviour.
+/// Toggle via ColdSnap / UI / Drop Image as Image (enabled by default).
 /// </summary>
 [InitializeOnLoad]
-public static class RawImageDropHandler
+public static class ImageDropHandler
 {
-    private const string MenuPath = "ColdSnap/UI/Drop Image as RawImage";
-    private const string PrefKey  = "ColdSnap.RawImageDropHandler.Enabled";
+    private const string MenuPath = "ColdSnap/UI/Drop Image as Image";
+    private const string PrefKey  = "ColdSnap.ImageDropHandler.Enabled";
 
-    static RawImageDropHandler()
+    static ImageDropHandler()
     {
         EditorApplication.hierarchyWindowItemOnGUI += OnHierarchyGUI;
     }
@@ -55,11 +55,11 @@ public static class RawImageDropHandler
         {
             DragAndDrop.AcceptDrag();
 
-            Undo.SetCurrentGroupName(textures.Count == 1 ? "Create RawImage" : "Create RawImages");
+            Undo.SetCurrentGroupName(textures.Count == 1 ? "Create Image" : "Create Images");
             int group = Undo.GetCurrentGroup();
 
             foreach (var tex in textures)
-                SpawnRawImage(tex, target.transform);
+                SpawnImage(tex, target.transform);
 
             Undo.CollapseUndoOperations(group);
         }
@@ -85,14 +85,14 @@ public static class RawImageDropHandler
     static bool IsInCanvas(GameObject go) =>
         go.GetComponent<Canvas>() != null || go.GetComponentInParent<Canvas>() != null;
 
-    static void SpawnRawImage(Texture2D texture, Transform parent)
+    static void SpawnImage(Texture2D texture, Transform parent)
     {
         var go = new GameObject(texture.name);
-        Undo.RegisterCreatedObjectUndo(go, "Create RawImage");
+        Undo.RegisterCreatedObjectUndo(go, "Create Image");
         go.transform.SetParent(parent, false);
 
-        var rawImage = go.AddComponent<RawImage>();
-        rawImage.texture = texture;
+        var Image = go.AddComponent<Image>();
+        Image.texture = texture;
         go.GetComponent<RectTransform>().sizeDelta = new Vector2(texture.width, texture.height);
 
         Selection.activeGameObject = go;
