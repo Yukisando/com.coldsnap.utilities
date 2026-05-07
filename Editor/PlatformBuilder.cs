@@ -1239,7 +1239,7 @@ public class PlatformBuilder : EditorWindow
 
 	string ZipBuildToDesktop(string appName, string source, bool isDirectory)
 	{
-		string desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+		string desktopPath = System.Environment.GetFolderPath(System.Environment.SpecialFolder.Desktop);
 		string zipFileName = $"{appName}_{settings.selectedPlatform}.zip";
 		string zipFilePath = Path.Combine(desktopPath, zipFileName);
 

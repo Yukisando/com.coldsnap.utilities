@@ -5,7 +5,7 @@ using UnityEngine.UI;
 
 /// <summary>
 /// Intercepts texture/sprite drag-and-drop onto Canvas objects in the Hierarchy and
-/// creates a Image instead of Unity's default UI Image (sprite) behaviour.
+/// creates an Image instead of Unity's default UI Image (sprite) behaviour.
 /// Toggle via ColdSnap / UI / Drop Image as Image (enabled by default).
 /// </summary>
 [InitializeOnLoad]
@@ -43,8 +43,8 @@ public static class ImageDropHandler
         if (evt.type != EventType.DragUpdated && evt.type != EventType.DragPerform) return;
         if (!selectionRect.Contains(evt.mousePosition)) return;
 
-        var textures = CollectTextures();
-        if (textures.Count == 0) return;
+        var sprites = CollectSprites();
+        if (sprites.Count == 0) return;
 
         var target = EditorUtility.InstanceIDToObject(instanceID) as GameObject;
         if (target == null || !IsInCanvas(target)) return;
@@ -55,11 +55,11 @@ public static class ImageDropHandler
         {
             DragAndDrop.AcceptDrag();
 
-            Undo.SetCurrentGroupName(textures.Count == 1 ? "Create Image" : "Create Images");
+            Undo.SetCurrentGroupName(sprites.Count == 1 ? "Create Image" : "Create Images");
             int group = Undo.GetCurrentGroup();
 
-            foreach (var tex in textures)
-                SpawnImage(tex, target.transform);
+            foreach (var spr in sprites)
+                SpawnImage(spr, target.transform);
 
             Undo.CollapseUndoOperations(group);
         }
@@ -69,15 +69,24 @@ public static class ImageDropHandler
 
     // ── Helpers ─────────────────────────────────────────────────────────────
 
-    static List<Texture2D> CollectTextures()
+    static List<Sprite> CollectSprites()
     {
-        var list = new List<Texture2D>();
+        var list = new List<Sprite>();
         foreach (var obj in DragAndDrop.objectReferences)
         {
-            if (obj is Texture2D tex)
-                list.Add(tex);
-            else if (obj is Sprite spr)
-                list.Add(spr.texture);
+            if (obj is Sprite spr)
+            {
+                list.Add(spr);
+            }
+            else if (obj is Texture2D tex)
+            {
+                string path = AssetDatabase.GetAssetPath(tex);
+                var loaded = AssetDatabase.LoadAssetAtPath<Sprite>(path);
+                if (loaded != null)
+                    list.Add(loaded);
+                else
+                    list.Add(Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f)));
+            }
         }
         return list;
     }
@@ -85,15 +94,15 @@ public static class ImageDropHandler
     static bool IsInCanvas(GameObject go) =>
         go.GetComponent<Canvas>() != null || go.GetComponentInParent<Canvas>() != null;
 
-    static void SpawnImage(Texture2D texture, Transform parent)
+    static void SpawnImage(Sprite sprite, Transform parent)
     {
-        var go = new GameObject(texture.name);
+        var go = new GameObject(sprite.name);
         Undo.RegisterCreatedObjectUndo(go, "Create Image");
         go.transform.SetParent(parent, false);
 
-        var Image = go.AddComponent<Image>();
-        Image.texture = texture;
-        go.GetComponent<RectTransform>().sizeDelta = new Vector2(texture.width, texture.height);
+        var image = go.AddComponent<Image>();
+        image.sprite = sprite;
+        go.GetComponent<RectTransform>().sizeDelta = new Vector2(sprite.rect.width, sprite.rect.height);
 
         Selection.activeGameObject = go;
     }
