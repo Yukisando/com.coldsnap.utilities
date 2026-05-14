@@ -308,6 +308,26 @@ public class PlatformBuilder : EditorWindow
 		SaveSettings();
 	}
 
+	void IgnoreScene(SceneInfo scene)
+	{
+		if (!settings.ignoredScenePaths.Contains(scene.scenePath))
+		{
+			settings.ignoredScenePaths.Add(scene.scenePath);
+			SaveSettings();
+			Repaint();
+		}
+	}
+
+	void UnignoreScene(SceneInfo scene)
+	{
+		if (settings.ignoredScenePaths.Contains(scene.scenePath))
+		{
+			settings.ignoredScenePaths.Remove(scene.scenePath);
+			SaveSettings();
+			Repaint();
+		}
+	}
+
 	void OnGUI()
 	{
 		GUILayout.Label("Platform Builder", EditorStyles.boldLabel);
@@ -513,26 +533,6 @@ public class PlatformBuilder : EditorWindow
 			       }
 
 			       EditorGUILayout.EndScrollView();
-		       // Add methods for ignore/unignore
-		       private void IgnoreScene(SceneInfo scene)
-		       {
-			       if (!settings.ignoredScenePaths.Contains(scene.scenePath))
-			       {
-				       settings.ignoredScenePaths.Add(scene.scenePath);
-				       SaveSettings();
-				       Repaint();
-			       }
-		       }
-
-		       private void UnignoreScene(SceneInfo scene)
-		       {
-			       if (settings.ignoredScenePaths.Contains(scene.scenePath))
-			       {
-				       settings.ignoredScenePaths.Remove(scene.scenePath);
-				       SaveSettings();
-				       Repaint();
-			       }
-		       }
 		}
 
 		DrawStreamingAssetsSection();
