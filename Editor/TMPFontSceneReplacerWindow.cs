@@ -23,6 +23,9 @@ public class TMPFontSceneReplacerWindow : EditorWindow
     private string lastResultMessage = string.Empty;
     private bool previewIsStale = true;
 
+    private enum AssetFilter { All, Scenes, Prefabs }
+    private AssetFilter assetFilter = AssetFilter.All;
+
     [MenuItem("ColdSnap/Tools/TMP Font Replacer")]
     private static void ShowWindow()
     {
@@ -70,18 +73,27 @@ public class TMPFontSceneReplacerWindow : EditorWindow
     {
         EditorGUILayout.BeginHorizontal();
 
-        if (GUILayout.Button("Select All", GUILayout.Width(100f)))
+        if (GUILayout.Button("Select All", GUILayout.Width(90f)))
         {
             SetAllSceneSelections(true);
         }
 
-        if (GUILayout.Button("Select None", GUILayout.Width(100f)))
+        if (GUILayout.Button("Select None", GUILayout.Width(90f)))
         {
             SetAllSceneSelections(false);
         }
 
         GUILayout.Space(10f);
-        GUILayout.Label("Search", GUILayout.Width(48f));
+
+        EditorGUI.BeginChangeCheck();
+        assetFilter = (AssetFilter)GUILayout.Toolbar((int)assetFilter, new[] { "All", "Scenes", "Prefabs" }, GUILayout.Width(180f));
+        if (EditorGUI.EndChangeCheck())
+        {
+            scrollPosition = Vector2.zero;
+        }
+
+        GUILayout.FlexibleSpace();
+        GUILayout.Label("Search", GUILayout.Width(44f));
         searchQuery = EditorGUILayout.TextField(searchQuery);
 
         EditorGUILayout.EndHorizontal();
@@ -89,42 +101,57 @@ public class TMPFontSceneReplacerWindow : EditorWindow
 
     private void DrawAssetLists()
     {
-        List<SceneSelectionItem> visibleScenes = GetVisibleScenes();
-        List<PrefabSelectionItem> visiblePrefabs = GetVisiblePrefabs();
+        bool showScenes = assetFilter != AssetFilter.Prefabs;
+        bool showPrefabs = assetFilter != AssetFilter.Scenes;
+
+        List<SceneSelectionItem> visibleScenes = showScenes ? GetVisibleScenes() : new List<SceneSelectionItem>();
+        List<PrefabSelectionItem> visiblePrefabs = showPrefabs ? GetVisiblePrefabs() : new List<PrefabSelectionItem>();
 
         if (visibleScenes.Count == 0 && visiblePrefabs.Count == 0)
         {
-            EditorGUILayout.HelpBox("No scenes or prefabs were found for the current filter.", MessageType.None);
+            EditorGUILayout.HelpBox("No assets found for the current filter.", MessageType.None);
             return;
         }
 
         scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition);
-        EditorGUILayout.LabelField("Scenes", EditorStyles.boldLabel);
-        if (visibleScenes.Count == 0)
+
+        if (showScenes)
         {
-            EditorGUILayout.HelpBox("No scenes match the current filter.", MessageType.None);
-        }
-        else
-        {
-            foreach (SceneSelectionItem scene in visibleScenes)
+            EditorGUILayout.LabelField("Scenes", EditorStyles.boldLabel);
+            if (visibleScenes.Count == 0)
             {
-                DrawSceneRow(scene);
+                EditorGUILayout.HelpBox("No scenes match the search query.", MessageType.None);
+            }
+            else
+            {
+                foreach (SceneSelectionItem scene in visibleScenes)
+                {
+                    DrawSceneRow(scene);
+                }
             }
         }
 
-        EditorGUILayout.Space();
-        EditorGUILayout.LabelField("Prefabs", EditorStyles.boldLabel);
-        if (visiblePrefabs.Count == 0)
+        if (showPrefabs)
         {
-            EditorGUILayout.HelpBox("No prefabs match the current filter.", MessageType.None);
-        }
-        else
-        {
-            foreach (PrefabSelectionItem prefab in visiblePrefabs)
+            if (showScenes)
             {
-                DrawPrefabRow(prefab);
+                EditorGUILayout.Space();
+            }
+
+            EditorGUILayout.LabelField("Prefabs (TMP only)", EditorStyles.boldLabel);
+            if (visiblePrefabs.Count == 0)
+            {
+                EditorGUILayout.HelpBox("No prefabs match the search query.", MessageType.None);
+            }
+            else
+            {
+                foreach (PrefabSelectionItem prefab in visiblePrefabs)
+                {
+                    DrawPrefabRow(prefab);
+                }
             }
         }
+
         EditorGUILayout.EndScrollView();
     }
 
@@ -166,9 +193,6 @@ public class TMPFontSceneReplacerWindow : EditorWindow
         EditorGUILayout.LabelField(prefab.Name, EditorStyles.boldLabel);
         EditorGUILayout.LabelField(prefab.AssetPath, EditorStyles.miniLabel);
         EditorGUILayout.EndVertical();
-
-        GUILayout.FlexibleSpace();
-        EditorGUILayout.LabelField(prefab.HasTMPComponents ? "TMP" : string.Empty, GUILayout.Width(40f));
 
         EditorGUILayout.EndHorizontal();
         EditorGUILayout.EndVertical();
@@ -234,9 +258,10 @@ public class TMPFontSceneReplacerWindow : EditorWindow
         }
 
         List<SceneSelectionItem> selectedScenes = scenes.Where(scene => scene.IsSelected).ToList();
-        if (selectedScenes.Count == 0)
+        List<PrefabSelectionItem> selectedPrefabsForRun = prefabs.Where(prefab => prefab.IsSelected).ToList();
+        if (selectedScenes.Count == 0 && selectedPrefabsForRun.Count == 0)
         {
-            lastResultMessage = "Select at least one scene.";
+            lastResultMessage = "Select at least one scene or prefab.";
             return;
         }
 
@@ -266,7 +291,7 @@ public class TMPFontSceneReplacerWindow : EditorWindow
                 }
             }
 
-            foreach (PrefabSelectionItem item in prefabs.Where(prefab => prefab.IsSelected).ToList())
+            foreach (PrefabSelectionItem item in selectedPrefabsForRun)
             {
                 totalReplaced += ReplaceFontsInPrefab(item.AssetPath, out bool processedPrefab);
                 if (processedPrefab)
@@ -407,21 +432,42 @@ public class TMPFontSceneReplacerWindow : EditorWindow
             scenes.Add(new SceneSelectionItem(scenePath));
         }
 
-        foreach (string guid in prefabGuids)
+        try
         {
-            string assetPath = AssetDatabase.GUIDToAssetPath(guid);
-            if (string.IsNullOrWhiteSpace(assetPath))
+            for (int i = 0; i < prefabGuids.Length; i++)
             {
-                continue;
-            }
+                string assetPath = AssetDatabase.GUIDToAssetPath(prefabGuids[i]);
+                if (string.IsNullOrWhiteSpace(assetPath))
+                {
+                    continue;
+                }
 
-            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
-            if (prefab == null || prefab.GetComponentInChildren<TMP_Text>(true) == null)
-            {
-                continue;
-            }
+                if (i % 20 == 0)
+                {
+                    float progress = (float)i / prefabGuids.Length;
+                    bool canceled = EditorUtility.DisplayCancelableProgressBar(
+                        "TMP Font Replacer",
+                        $"Scanning prefabs for TMP components... ({i}/{prefabGuids.Length})",
+                        progress);
 
-            prefabs.Add(new PrefabSelectionItem(assetPath));
+                    if (canceled)
+                    {
+                        break;
+                    }
+                }
+
+                GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
+                if (prefab == null || prefab.GetComponentInChildren<TMP_Text>(true) == null)
+                {
+                    continue;
+                }
+
+                prefabs.Add(new PrefabSelectionItem(assetPath));
+            }
+        }
+        finally
+        {
+            EditorUtility.ClearProgressBar();
         }
 
         scenes.Sort((left, right) => string.Compare(left.Name, right.Name, StringComparison.OrdinalIgnoreCase));
@@ -441,6 +487,20 @@ public class TMPFontSceneReplacerWindow : EditorWindow
             .Where(scene =>
                 scene.Name.IndexOf(searchQuery, StringComparison.OrdinalIgnoreCase) >= 0 ||
                 scene.ScenePath.IndexOf(searchQuery, StringComparison.OrdinalIgnoreCase) >= 0)
+            .ToList();
+    }
+
+    private List<PrefabSelectionItem> GetVisiblePrefabs()
+    {
+        if (string.IsNullOrWhiteSpace(searchQuery))
+        {
+            return prefabs;
+        }
+
+        return prefabs
+            .Where(prefab =>
+                prefab.Name.IndexOf(searchQuery, StringComparison.OrdinalIgnoreCase) >= 0 ||
+                prefab.AssetPath.IndexOf(searchQuery, StringComparison.OrdinalIgnoreCase) >= 0)
             .ToList();
     }
 
@@ -594,6 +654,5 @@ public class TMPFontSceneReplacerWindow : EditorWindow
         public string AssetPath { get; }
         public string Name { get; }
         public bool IsSelected { get; set; }
-        public bool HasTMPComponents => AssetDatabase.LoadAssetAtPath<GameObject>(AssetPath)?.GetComponentInChildren<TMP_Text>(true) != null;
     }
 }
