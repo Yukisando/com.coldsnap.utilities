@@ -533,6 +533,23 @@ public class PlatformBuilder : EditorWindow
 			       }
 
 			       EditorGUILayout.EndScrollView();
+
+		       // Sync status
+		       EditorGUILayout.Space();
+		       bool isSynced = IsSceneListSynced();
+		       if (!isSynced)
+		       {
+			       EditorGUILayout.HelpBox("Scene selection is out of sync with Unity's Build Settings. Sync before building to ensure the correct scenes are included.", MessageType.Warning);
+			       if (GUILayout.Button("Sync Scenes to Build Settings"))
+			       {
+				       SyncScenesToBuildSettings();
+			       }
+		       }
+		       else
+		       {
+			       var style = new GUIStyle(EditorStyles.helpBox);
+			       EditorGUILayout.LabelField("\u2713 Scene list is synced with Build Settings.", EditorStyles.centeredGreyMiniLabel);
+		       }
 		}
 
 		DrawStreamingAssetsSection();
@@ -544,6 +561,12 @@ public class PlatformBuilder : EditorWindow
 		}
 		
 		EditorGUILayout.Space();
+
+		// Out-of-sync warning near build buttons
+		if (!settings.currentSceneOnly && !IsSceneListSynced())
+		{
+			EditorGUILayout.HelpBox("Scene list is out of sync with Build Settings. Click \"Sync Scenes to Build Settings\" above before building.", MessageType.Warning);
+		}
 
 		// Spinner while building/zipping
 		if (_isBuildingOrZipping)
@@ -826,6 +849,43 @@ public class PlatformBuilder : EditorWindow
 		EditorGUILayout.EndScrollView();
 	}
 	
+	bool IsSceneListSynced()
+	{
+		var selected = allScenes
+			.Where(s => s.isSelected && !settings.ignoredScenePaths.Contains(s.scenePath))
+			.OrderBy(s => s.buildOrder)
+			.Select(s => s.scenePath)
+			.ToArray();
+
+		var buildScenes = EditorBuildSettings.scenes
+			.Where(s => s.enabled)
+			.Select(s => s.path)
+			.ToArray();
+
+		if (selected.Length != buildScenes.Length) return false;
+		for (int i = 0; i < selected.Length; i++)
+		{
+			if (selected[i] != buildScenes[i]) return false;
+		}
+		return true;
+	}
+
+	void SyncScenesToBuildSettings()
+	{
+		var selected = allScenes
+			.Where(s => s.isSelected && !settings.ignoredScenePaths.Contains(s.scenePath))
+			.OrderBy(s => s.buildOrder)
+			.Select(s => s.scenePath)
+			.ToArray();
+
+		EditorBuildSettings.scenes = selected
+			.Select(p => new EditorBuildSettingsScene(p, true))
+			.ToArray();
+
+		Debug.Log($"Synced {selected.Length} scene(s) to Build Settings.");
+		Repaint();
+	}
+
 	bool ValidateAABBuild()
 	{
 		List<string> warnings = new List<string>();
