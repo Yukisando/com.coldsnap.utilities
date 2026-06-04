@@ -533,23 +533,6 @@ public class PlatformBuilder : EditorWindow
 			       }
 
 			       EditorGUILayout.EndScrollView();
-
-		       // Sync status
-		       EditorGUILayout.Space();
-		       bool isSynced = IsSceneListSynced();
-		       if (!isSynced)
-		       {
-			       EditorGUILayout.HelpBox("Scene selection is out of sync with Unity's Build Settings. Sync before building to ensure the correct scenes are included.", MessageType.Warning);
-			       if (GUILayout.Button("Sync Scenes to Build Settings"))
-			       {
-				       SyncScenesToBuildSettings();
-			       }
-		       }
-		       else
-		       {
-			       var style = new GUIStyle(EditorStyles.helpBox);
-			       EditorGUILayout.LabelField("\u2713 Scene list is synced with Build Settings.", EditorStyles.centeredGreyMiniLabel);
-		       }
 		}
 
 		DrawStreamingAssetsSection();
@@ -565,7 +548,11 @@ public class PlatformBuilder : EditorWindow
 		// Out-of-sync warning near build buttons
 		if (!settings.currentSceneOnly && !IsSceneListSynced())
 		{
-			EditorGUILayout.HelpBox("Scene list is out of sync with Build Settings. Click \"Sync Scenes to Build Settings\" above before building.", MessageType.Warning);
+			EditorGUILayout.HelpBox("Scene selection is out of sync with Unity's Build Settings.", MessageType.Warning);
+			if (GUILayout.Button("Sync Scenes to Build Settings"))
+			{
+				SyncScenesToBuildSettings();
+			}
 		}
 
 		// Spinner while building/zipping
