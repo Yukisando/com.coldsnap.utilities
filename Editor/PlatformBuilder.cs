@@ -787,11 +787,11 @@ public class PlatformBuilder : EditorWindow
 		EditorGUILayout.Space();
 		GUILayout.Label("Scripting & Architecture", EditorStyles.boldLabel);
 		
-		var currentBackend = PlayerSettings.GetScriptingBackend(BuildTargetGroup.Android);
+		var currentBackend = PlayerSettings.GetScriptingBackend(UnityEditor.Build.NamedBuildTarget.Android);
 		var newBackend = (ScriptingImplementation)EditorGUILayout.EnumPopup("Scripting Backend", currentBackend);
 		if (newBackend != currentBackend)
 		{
-			PlayerSettings.SetScriptingBackend(BuildTargetGroup.Android, newBackend);
+			PlayerSettings.SetScriptingBackend(UnityEditor.Build.NamedBuildTarget.Android, newBackend);
 		}
 		if (currentBackend != ScriptingImplementation.IL2CPP)
 		{
@@ -879,7 +879,7 @@ public class PlatformBuilder : EditorWindow
 		List<string> errors = new List<string>();
 		
 		// Check IL2CPP
-		var backend = PlayerSettings.GetScriptingBackend(BuildTargetGroup.Android);
+		var backend = PlayerSettings.GetScriptingBackend(UnityEditor.Build.NamedBuildTarget.Android);
 		if (backend != ScriptingImplementation.IL2CPP)
 		{
 			errors.Add("Scripting Backend must be IL2CPP (required for 64-bit Google Play builds).");
