@@ -160,10 +160,11 @@ public class GitCommandsMenu : EditorWindow
         }
         RunGitSequence("Commit + Push",
             new[] { "add .", $"commit -m \"{Sanitize(commitMessage)}\"", "push" },
-            clearMessageOnSuccess: true);
+            clearMessageOnSuccess: true,
+            closeOnSuccess: true);
     }
 
-    void RunGitSequence(string label, string[] commands, bool clearMessageOnSuccess = false) {
+    void RunGitSequence(string label, string[] commands, bool clearMessageOnSuccess = false, bool closeOnSuccess = false) {
         isBusy = true;
         SetMessage($"{label}…", false);
         Repaint();
@@ -189,6 +190,9 @@ public class GitCommandsMenu : EditorWindow
                     if (clearMessageOnSuccess) commitMessage = "";
                     SetMessage($"{label} succeeded.\n{combinedOutput.Trim()}", false);
                     Debug.Log($"[Git] {label} succeeded.");
+                    if (closeOnSuccess) {
+                        Close();
+                    }
                 }
                 RefreshStatus();
                 Repaint();
