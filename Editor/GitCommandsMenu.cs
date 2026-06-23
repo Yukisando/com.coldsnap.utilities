@@ -17,6 +17,7 @@ public class GitCommandsMenu : EditorWindow
     bool lastMessageIsError;
     bool showMoreOptions;
     bool isBusy;
+    bool shouldCloseOnNextGUI;
     Vector2 scroll;
 
     [MenuItem("ColdSnap/Git/Quick Commit %#s")] // Ctrl+Shift+S
@@ -47,6 +48,12 @@ public class GitCommandsMenu : EditorWindow
 
         GUILayout.FlexibleSpace();
         DrawStatusBar();
+
+        if (shouldCloseOnNextGUI) {
+            shouldCloseOnNextGUI = false;
+            Close();
+            return;
+        }
     }
 
     void DrawHeader() {
@@ -191,7 +198,8 @@ public class GitCommandsMenu : EditorWindow
                     SetMessage($"{label} succeeded.\n{combinedOutput.Trim()}", false);
                     Debug.Log($"[Git] {label} succeeded.");
                     if (closeOnSuccess) {
-                        Close();
+                        // Defer closing until after the current OnGUI finishes
+                        shouldCloseOnNextGUI = true;
                     }
                 }
                 RefreshStatus();
