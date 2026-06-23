@@ -34,17 +34,15 @@ public class GitCommandsMenu : EditorWindow
     }
 
     void OnGUI() {
-        EditorGUI.BeginDisabledGroup(isBusy);
-
-        DrawHeader();
-        GUILayout.Space(6);
-        DrawCommitSection();
-        GUILayout.Space(6);
-        DrawActionButtons();
-        GUILayout.Space(6);
-        DrawMoreOptions();
-
-        EditorGUI.EndDisabledGroup();
+        using (new EditorGUI.DisabledScope(isBusy)) {
+            DrawHeader();
+            GUILayout.Space(6);
+            DrawCommitSection();
+            GUILayout.Space(6);
+            DrawActionButtons();
+            GUILayout.Space(6);
+            DrawMoreOptions();
+        }
 
         GUILayout.FlexibleSpace();
         DrawStatusBar();
@@ -57,13 +55,13 @@ public class GitCommandsMenu : EditorWindow
     }
 
     void DrawHeader() {
-        GUILayout.BeginHorizontal(EditorStyles.helpBox);
-        GUILayout.Label(string.IsNullOrEmpty(branchName) ? "Branch: (unknown)" : $"Branch: {branchName}", EditorStyles.boldLabel);
-        GUILayout.FlexibleSpace();
-        if (GUILayout.Button("↻", GUILayout.Width(26), GUILayout.Height(18))) {
-            RefreshStatus();
+        using (new EditorGUILayout.HorizontalScope(EditorStyles.helpBox)) {
+            GUILayout.Label(string.IsNullOrEmpty(branchName) ? "Branch: (unknown)" : $"Branch: {branchName}", EditorStyles.boldLabel);
+            GUILayout.FlexibleSpace();
+            if (GUILayout.Button("↻", GUILayout.Width(26), GUILayout.Height(18))) {
+                RefreshStatus();
+            }
         }
-        GUILayout.EndHorizontal();
 
         if (!string.IsNullOrEmpty(statusSummary)) {
             GUILayout.Label(statusSummary, EditorStyles.miniLabel);
@@ -78,74 +76,72 @@ public class GitCommandsMenu : EditorWindow
         bool canCommit = !string.IsNullOrWhiteSpace(commitMessage);
 
         GUI.backgroundColor = new Color(0.5f, 0.85f, 0.55f);
-        EditorGUI.BeginDisabledGroup(!canCommit);
-        bool submitViaKey = canCommit && Event.current.type == EventType.KeyDown
-                            && (Event.current.keyCode == KeyCode.Return || Event.current.keyCode == KeyCode.KeypadEnter)
-                            && (Event.current.control || Event.current.command);
-        if (GUILayout.Button("Commit All + Push", GUILayout.Height(40)) || submitViaKey) {
-            CommitAllAndPush();
+        using (new EditorGUI.DisabledScope(!canCommit)) {
+            bool submitViaKey = canCommit && Event.current.type == EventType.KeyDown
+                                && (Event.current.keyCode == KeyCode.Return || Event.current.keyCode == KeyCode.KeypadEnter)
+                                && (Event.current.control || Event.current.command);
+            if (GUILayout.Button("Commit All + Push", GUILayout.Height(40)) || submitViaKey) {
+                CommitAllAndPush();
+            }
         }
-        EditorGUI.EndDisabledGroup();
         GUI.backgroundColor = Color.white;
 
         EditorGUILayout.LabelField("Ctrl+Enter to commit + push", EditorStyles.miniLabel);
     }
 
     void DrawActionButtons() {
-        GUILayout.BeginHorizontal();
+        using (new EditorGUILayout.HorizontalScope()) {
+            if (GUILayout.Button("Pull", GUILayout.Height(28))) {
+                RunGitSequence("Pull", new[] { "pull" });
+            }
 
-        if (GUILayout.Button("Pull", GUILayout.Height(28))) {
-            RunGitSequence("Pull", new[] { "pull" });
+            using (new EditorGUI.DisabledScope(string.IsNullOrWhiteSpace(commitMessage))) {
+                if (GUILayout.Button("Commit All", GUILayout.Height(28))) {
+                    RunGitSequence("Commit", new[] { "add .", $"commit -m \"{Sanitize(commitMessage)}\"" }, clearMessageOnSuccess: true);
+                }
+            }
+
+            if (GUILayout.Button("Push", GUILayout.Height(28))) {
+                RunGitSequence("Push", new[] { "push" });
+            }
         }
-
-        EditorGUI.BeginDisabledGroup(string.IsNullOrWhiteSpace(commitMessage));
-        if (GUILayout.Button("Commit All", GUILayout.Height(28))) {
-            RunGitSequence("Commit", new[] { "add .", $"commit -m \"{Sanitize(commitMessage)}\"" }, clearMessageOnSuccess: true);
-        }
-        EditorGUI.EndDisabledGroup();
-
-        if (GUILayout.Button("Push", GUILayout.Height(28))) {
-            RunGitSequence("Push", new[] { "push" });
-        }
-
-        GUILayout.EndHorizontal();
     }
 
     void DrawMoreOptions() {
         showMoreOptions = EditorGUILayout.Foldout(showMoreOptions, "More Options", true);
         if (!showMoreOptions) return;
 
-        EditorGUI.indentLevel++;
-        GUILayout.BeginHorizontal();
-        if (GUILayout.Button("Fetch", GUILayout.Height(24))) {
-            RunGitSequence("Fetch", new[] { "fetch --all --prune" });
-        }
-        if (GUILayout.Button("Stage All", GUILayout.Height(24))) {
-            RunGitSequence("Stage All", new[] { "add ." });
-        }
-        GUILayout.EndHorizontal();
-
-        GUILayout.BeginHorizontal();
-        if (GUILayout.Button("Unstage All", GUILayout.Height(24))) {
-            RunGitSequence("Unstage All", new[] { "reset" });
-        }
-        if (GUILayout.Button("Commit + Push", GUILayout.Height(24))) {
-            CommitAllAndPush();
-        }
-        GUILayout.EndHorizontal();
-
-        GUILayout.Space(4);
-        GUI.backgroundColor = new Color(1f, 0.4f, 0.4f); // light red tint
-        if (GUILayout.Button("Discard All Changes", GUILayout.Height(24))) {
-            GUI.backgroundColor = Color.white;
-            if (EditorUtility.DisplayDialog("Discard All Changes",
-                    "Are you sure you want to discard ALL uncommitted changes? This cannot be undone.",
-                    "Yes, Discard", "Cancel")) {
-                RunGitSequence("Discard", new[] { "reset --hard", "clean -fd" });
+        using (new EditorGUI.IndentLevelScope()) {
+            using (new EditorGUILayout.HorizontalScope()) {
+                if (GUILayout.Button("Fetch", GUILayout.Height(24))) {
+                    RunGitSequence("Fetch", new[] { "fetch --all --prune" });
+                }
+                if (GUILayout.Button("Stage All", GUILayout.Height(24))) {
+                    RunGitSequence("Stage All", new[] { "add ." });
+                }
             }
+
+            using (new EditorGUILayout.HorizontalScope()) {
+                if (GUILayout.Button("Unstage All", GUILayout.Height(24))) {
+                    RunGitSequence("Unstage All", new[] { "reset" });
+                }
+                if (GUILayout.Button("Commit + Push", GUILayout.Height(24))) {
+                    CommitAllAndPush();
+                }
+            }
+
+            GUILayout.Space(4);
+            GUI.backgroundColor = new Color(1f, 0.4f, 0.4f); // light red tint
+            if (GUILayout.Button("Discard All Changes", GUILayout.Height(24))) {
+                GUI.backgroundColor = Color.white;
+                if (EditorUtility.DisplayDialog("Discard All Changes",
+                        "Are you sure you want to discard ALL uncommitted changes? This cannot be undone.",
+                        "Yes, Discard", "Cancel")) {
+                    RunGitSequence("Discard", new[] { "reset --hard", "clean -fd" });
+                }
+            }
+            GUI.backgroundColor = Color.white;
         }
-        GUI.backgroundColor = Color.white;
-        EditorGUI.indentLevel--;
     }
 
     void DrawStatusBar() {
@@ -155,9 +151,10 @@ public class GitCommandsMenu : EditorWindow
         }
         if (string.IsNullOrEmpty(lastMessage)) return;
 
-        scroll = EditorGUILayout.BeginScrollView(scroll, GUILayout.MaxHeight(80));
-        EditorGUILayout.HelpBox(lastMessage, lastMessageIsError ? MessageType.Error : MessageType.Info);
-        EditorGUILayout.EndScrollView();
+        using (var scrollScope = new EditorGUILayout.ScrollViewScope(scroll, GUILayout.MaxHeight(80))) {
+            scroll = scrollScope.scrollPosition;
+            EditorGUILayout.HelpBox(lastMessage, lastMessageIsError ? MessageType.Error : MessageType.Info);
+        }
     }
 
     void CommitAllAndPush() {
