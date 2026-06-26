@@ -1241,6 +1241,9 @@ public class PlatformBuilder : EditorWindow
 		{
 			Debug.Log($"Build succeeded: {summary.outputPath}");
 
+			if (settings.selectedPlatform == BuildPlatform.MacOS)
+				CreateMacOSPermissionsScript(Path.GetDirectoryName(summary.outputPath), appName);
+
 			if (zipToDesktop)
 			{
 				EditorUtility.DisplayProgressBar("Build & Zip to Desktop", "Creating ZIP archive...", 0.85f);
@@ -1321,7 +1324,11 @@ public class PlatformBuilder : EditorWindow
 			}
 			else if (!settings.autoRunPlayer)
 			{
-				if (EditorUtility.DisplayDialog("Build Complete", $"Build completed successfully!\n\nPath: {summary.outputPath}\n\nOpen build folder?", "Yes", "No"))
+				string completionMsg = $"Build completed successfully!\n\nPath: {summary.outputPath}";
+				if (settings.selectedPlatform == BuildPlatform.MacOS)
+					completionMsg += "\n\nA 'fix_permissions.sh' script was created alongside the build. Run it on macOS if the app can't be launched.";
+				completionMsg += "\n\nOpen build folder?";
+				if (EditorUtility.DisplayDialog("Build Complete", completionMsg, "Yes", "No"))
 				{
 					// For different platforms, open the appropriate folder
 					string folderToOpen = "";
@@ -1349,7 +1356,7 @@ public class PlatformBuilder : EditorWindow
 		}
 	}
 
-	string ZipBuildToDesktop(string appName, string source, bool isDirectory)
+	static string ZipBuildToDesktop(string appName, string source, bool isDirectory)
 	{
 		string desktopPath = System.Environment.GetFolderPath(System.Environment.SpecialFolder.Desktop);
 		string zipFileName = $"{appName}_{settings.selectedPlatform}.zip";
@@ -1360,7 +1367,10 @@ public class PlatformBuilder : EditorWindow
 
 		if (isDirectory)
 		{
-			ZipFile.CreateFromDirectory(source, zipFilePath, System.IO.Compression.CompressionLevel.Optimal, false);
+			if (settings.selectedPlatform == BuildPlatform.MacOS)
+				ZipMacOSWithUnixPermissions(source, zipFilePath);
+			else
+				ZipFile.CreateFromDirectory(source, zipFilePath, System.IO.Compression.CompressionLevel.Optimal, false);
 		}
 		else
 		{
@@ -1371,5 +1381,63 @@ public class PlatformBuilder : EditorWindow
 		}
 
 		return zipFilePath;
+	}
+
+	static void ZipMacOSWithUnixPermissions(string sourceDir, string zipFilePath)
+	{
+		using var archive = ZipFile.Open(zipFilePath, ZipArchiveMode.Create);
+		AddFolderToZipWithUnixPermissions(archive, sourceDir, "");
+	}
+
+	static void AddFolderToZipWithUnixPermissions(ZipArchive archive, string folder, string baseEntry)
+	{
+		const int S_IFREG = 0x8000; // regular file
+		const int S_IFDIR = 0x4000; // directory
+		const int PERM_755 = 0x1ED; // rwxr-xr-x
+		const int PERM_644 = 0x1A4; // rw-r--r--
+
+		foreach (string file in Directory.GetFiles(folder))
+		{
+			string fileName = Path.GetFileName(file);
+			string entryName = string.IsNullOrEmpty(baseEntry) ? fileName : $"{baseEntry}/{fileName}";
+			var entry = archive.CreateEntryFromFile(file, entryName, CompressionLevel.Optimal);
+			int perm = IsMacOSExecutable(entryName, fileName) ? PERM_755 : PERM_644;
+			entry.ExternalAttributes = (S_IFREG | perm) << 16;
+		}
+
+		foreach (string dir in Directory.GetDirectories(folder))
+		{
+			string dirName = Path.GetFileName(dir);
+			string entryName = string.IsNullOrEmpty(baseEntry) ? dirName : $"{baseEntry}/{dirName}";
+			var dirEntry = archive.CreateEntry($"{entryName}/", CompressionLevel.NoCompression);
+			dirEntry.ExternalAttributes = (S_IFDIR | PERM_755) << 16;
+			AddFolderToZipWithUnixPermissions(archive, dir, entryName);
+		}
+	}
+
+	static bool IsMacOSExecutable(string entryName, string fileName)
+	{
+		if (entryName.Contains("/MacOS/"))
+			return true;
+		string ext = Path.GetExtension(fileName).ToLower();
+		if (ext == ".dylib" || ext == ".so")
+			return true;
+		// Framework/bundle executables have no extension
+		if (string.IsNullOrEmpty(ext) && (entryName.Contains(".framework/") || entryName.Contains(".bundle/")))
+			return true;
+		return false;
+	}
+
+	void CreateMacOSPermissionsScript(string buildFolder, string appName)
+	{
+		string scriptPath = Path.Combine(buildFolder, "fix_permissions.sh");
+		string content =
+			"#!/bin/bash\n" +
+			"# Run this on macOS to fix execute permissions after building on Windows.\n" +
+			"SCRIPT_DIR=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)\"\n" +
+			$"chmod -R +x \"$SCRIPT_DIR/{appName}.app/Contents/MacOS/\"\n" +
+			$"echo \"Done — {appName}.app should now be launchable.\"\n";
+		File.WriteAllText(scriptPath, content, new System.Text.UTF8Encoding(false));
+		Debug.Log($"[PlatformBuilder] fix_permissions.sh created in: {buildFolder}");
 	}
 }
