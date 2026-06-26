@@ -1400,7 +1400,7 @@ public class PlatformBuilder : EditorWindow
 		{
 			string fileName = Path.GetFileName(file);
 			string entryName = string.IsNullOrEmpty(baseEntry) ? fileName : $"{baseEntry}/{fileName}";
-			var entry = archive.CreateEntryFromFile(file, entryName, CompressionLevel.Optimal);
+			var entry = archive.CreateEntryFromFile(file, entryName, System.IO.Compression.CompressionLevel.Optimal);
 			int perm = IsMacOSExecutable(entryName, fileName) ? PERM_755 : PERM_644;
 			entry.ExternalAttributes = (S_IFREG | perm) << 16;
 		}
@@ -1409,7 +1409,7 @@ public class PlatformBuilder : EditorWindow
 		{
 			string dirName = Path.GetFileName(dir);
 			string entryName = string.IsNullOrEmpty(baseEntry) ? dirName : $"{baseEntry}/{dirName}";
-			var dirEntry = archive.CreateEntry($"{entryName}/", CompressionLevel.NoCompression);
+			var dirEntry = archive.CreateEntry($"{entryName}/", System.IO.Compression.CompressionLevel.NoCompression);
 			dirEntry.ExternalAttributes = (S_IFDIR | PERM_755) << 16;
 			AddFolderToZipWithUnixPermissions(archive, dir, entryName);
 		}
