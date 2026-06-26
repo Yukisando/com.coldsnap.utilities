@@ -61,6 +61,7 @@ public class PlatformBuilderSettings
 	public BuildPlatform selectedPlatform = BuildPlatform.Windows;
 	public bool isDebugBuild;
 	public bool autoRunPlayer;
+	public bool forceCleanBuild;
 	public bool currentSceneOnly = true;
 	public string appName = "";
 	public bool useCustomAppName = false;
@@ -348,6 +349,7 @@ public class PlatformBuilder : EditorWindow
 		// Build options
 		settings.isDebugBuild = EditorGUILayout.Toggle("Debug Build", settings.isDebugBuild);
 		settings.autoRunPlayer = EditorGUILayout.Toggle("Auto Run Player", settings.autoRunPlayer);
+		settings.forceCleanBuild = EditorGUILayout.Toggle("Clean Build", settings.forceCleanBuild);
 		
 		EditorGUILayout.Space();
 		
@@ -947,6 +949,30 @@ public class PlatformBuilder : EditorWindow
 		return true;
 	}
 	
+	void DeleteExistingBuildOutput(string outputPath)
+	{
+		if (string.IsNullOrEmpty(outputPath))
+			return;
+
+		try
+		{
+			if (File.Exists(outputPath))
+			{
+				File.Delete(outputPath);
+				Debug.Log($"Clean build: deleted existing file at {outputPath}");
+			}
+			else if (Directory.Exists(outputPath))
+			{
+				Directory.Delete(outputPath, true);
+				Debug.Log($"Clean build: deleted existing directory at {outputPath}");
+			}
+		}
+		catch (Exception ex)
+		{
+			Debug.LogWarning($"Clean build could not remove existing output '{outputPath}': {ex.Message}");
+		}
+	}
+
 	void BuildForPlatform(bool zipToDesktop = false)
 	{
 		_isBuildingOrZipping = true;
@@ -1156,6 +1182,12 @@ public class PlatformBuilder : EditorWindow
 		if (settings.autoRunPlayer)
 		{
 			buildOptions |= BuildOptions.AutoRunPlayer;
+		}
+
+		if (settings.forceCleanBuild)
+		{
+			buildOptions |= BuildOptions.CleanBuildCache;
+			DeleteExistingBuildOutput(buildPath);
 		}
 		
 		buildPlayerOptions.options = buildOptions;
