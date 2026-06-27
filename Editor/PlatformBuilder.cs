@@ -337,8 +337,15 @@ public class PlatformBuilder : EditorWindow
 		
 		// Platform selection
 		BuildPlatform previousPlatform = settings.selectedPlatform;
-		settings.selectedPlatform = (BuildPlatform)EditorGUILayout.EnumPopup("Target Platform", settings.selectedPlatform);
-		
+		EditorGUILayout.BeginHorizontal();
+		EditorGUILayout.LabelField("Target Platform", GUILayout.Width(EditorGUIUtility.labelWidth));
+		settings.selectedPlatform = (BuildPlatform)EditorGUILayout.EnumPopup(settings.selectedPlatform);
+		if (GUILayout.Button("Switch Platform", GUILayout.Width(110)))
+		{
+			SwitchActivePlatform();
+		}
+		EditorGUILayout.EndHorizontal();
+
 		if (previousPlatform != settings.selectedPlatform)
 		{
 			UpdateWindowSize();
@@ -971,6 +978,43 @@ public class PlatformBuilder : EditorWindow
 		{
 			Debug.LogWarning($"Clean build could not remove existing output '{outputPath}': {ex.Message}");
 		}
+	}
+
+	void SwitchActivePlatform()
+	{
+		BuildTarget buildTarget;
+		BuildTargetGroup buildTargetGroup;
+
+		switch (settings.selectedPlatform)
+		{
+			case BuildPlatform.Windows:
+				buildTarget = BuildTarget.StandaloneWindows64;
+				buildTargetGroup = BuildTargetGroup.Standalone;
+				break;
+			case BuildPlatform.MacOS:
+				buildTarget = BuildTarget.StandaloneOSX;
+				buildTargetGroup = BuildTargetGroup.Standalone;
+				break;
+			case BuildPlatform.Android:
+			case BuildPlatform.AAB:
+				buildTarget = BuildTarget.Android;
+				buildTargetGroup = BuildTargetGroup.Android;
+				break;
+			case BuildPlatform.WebGL:
+				buildTarget = BuildTarget.WebGL;
+				buildTargetGroup = BuildTargetGroup.WebGL;
+				break;
+			default:
+				return;
+		}
+
+		if (EditorUserBuildSettings.activeBuildTarget == buildTarget)
+		{
+			Debug.Log($"[PlatformBuilder] Already on {settings.selectedPlatform} platform.");
+			return;
+		}
+
+		EditorUserBuildSettings.SwitchActiveBuildTarget(buildTargetGroup, buildTarget);
 	}
 
 	void BuildForPlatform(bool zipToDesktop = false)
