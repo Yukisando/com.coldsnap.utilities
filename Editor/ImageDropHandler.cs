@@ -35,7 +35,7 @@ public static class ImageDropHandler
 
     // ── Drag handler ────────────────────────────────────────────────────────
 
-    static void OnHierarchyGUI(int entityId, Rect selectionRect)
+    static void OnHierarchyGUI(EntityId entityId, Rect selectionRect)
     {
         if (!IsEnabled()) return;
 
