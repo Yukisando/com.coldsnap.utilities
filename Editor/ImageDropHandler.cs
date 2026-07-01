@@ -16,7 +16,7 @@ public static class ImageDropHandler
 
     static ImageDropHandler()
     {
-        EditorApplication.hierarchyWindowItemOnGUI += OnHierarchyGUI;
+        EditorApplication.hierarchyWindowItemByEntityIdOnGUI += OnHierarchyGUI;
     }
 
     // ── Menu ────────────────────────────────────────────────────────────────
@@ -35,7 +35,7 @@ public static class ImageDropHandler
 
     // ── Drag handler ────────────────────────────────────────────────────────
 
-    static void OnHierarchyGUI(int instanceID, Rect selectionRect)
+    static void OnHierarchyGUI(int entityId, Rect selectionRect)
     {
         if (!IsEnabled()) return;
 
@@ -46,7 +46,7 @@ public static class ImageDropHandler
         var sprites = CollectSprites();
         if (sprites.Count == 0) return;
 
-        var target = EditorUtility.InstanceIDToObject(instanceID) as GameObject;
+        var target = EditorUtility.EntityIdToObject(entityId) as GameObject;
         if (target == null || !IsInCanvas(target)) return;
 
         DragAndDrop.visualMode = DragAndDropVisualMode.Copy;

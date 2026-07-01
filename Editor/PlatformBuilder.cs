@@ -784,11 +784,11 @@ public class PlatformBuilder : EditorWindow
 		// Package Identification
 		EditorGUILayout.Space();
 		GUILayout.Label("Package Identification", EditorStyles.boldLabel);
-		string bundleId = PlayerSettings.GetApplicationIdentifier(BuildTargetGroup.Android);
+		string bundleId = PlayerSettings.GetApplicationIdentifier(UnityEditor.Build.NamedBuildTarget.Android);
 		string newBundleId = EditorGUILayout.TextField("Package Name", bundleId);
 		if (newBundleId != bundleId)
 		{
-			PlayerSettings.SetApplicationIdentifier(BuildTargetGroup.Android, newBundleId);
+			PlayerSettings.SetApplicationIdentifier(UnityEditor.Build.NamedBuildTarget.Android, newBundleId);
 		}
 		EditorGUILayout.HelpBox("Must match your Google Play Console package name (e.g., com.company.app).", MessageType.Info);
 		
@@ -912,7 +912,7 @@ public class PlatformBuilder : EditorWindow
 		}
 		
 		// Check package name
-		string packageName = PlayerSettings.GetApplicationIdentifier(BuildTargetGroup.Android);
+		string packageName = PlayerSettings.GetApplicationIdentifier(UnityEditor.Build.NamedBuildTarget.Android);
 		if (string.IsNullOrEmpty(packageName) || packageName == "com.Company.ProductName")
 		{
 			warnings.Add("Package name appears to be default. Update it to match your Google Play Console listing.");
