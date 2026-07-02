@@ -20,6 +20,7 @@ The package is aimed at teams that want focused utilities without adopting a lar
 
 - `FakeKeyboarder`: emit a configured string one character at a time to simulate typing.
 - `FakeKeyboardTextTarget`: receive characters from `FakeKeyboarder` and write them into compatible UI text or input components.
+- `SliderExtensions`: extension methods for `UnityEngine.UI.Slider`, starting with `BindTextToValue`, which keeps a `TMP_Text` in sync with a slider's value.
 
 ### Templates and package helpers
 
@@ -38,6 +39,8 @@ Use `ColdSnap/Scenes/Quick Open` when you need to jump between scenes quickly du
 Use `ColdSnap/Tools/Auto Apply Android Keystore Passwords` only if your local setup consistently uses the same signing credentials. It defaults to off because shared packages should not assume a single keystore workflow.
 
 For runtime typing simulations, add `FakeKeyboarder` to a GameObject and either subscribe to its `OnType` event in code or hook its inspector event to another component. If you want a ready-made bridge, add `FakeKeyboardTextTarget`, assign the source `FakeKeyboarder`, and point it at a compatible text-bearing component. The bridge is reflection-based so it can work with common Unity UI and TextMeshPro-style text targets without taking a hard TMP package dependency.
+
+To keep a slider's value mirrored on a label, call `slider.BindTextToValue(myTmpText)` from code (for example in `OnEnable`). It writes the current value immediately and keeps it updated as the slider changes; pass a `format` string or a `formatter` callback for custom display, and keep the returned listener to pass into `slider.UnbindTextFromValue(...)` on cleanup.
 
 ## Package scope
 
