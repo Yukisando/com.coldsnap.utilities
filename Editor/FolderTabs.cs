@@ -5,12 +5,17 @@ using UnityEditor;
 using UnityEngine;
 
 /// <summary>
-/// Lets you pin folders from the Project window ("Add Folder Tab") and revisit them from a
-/// dockable "Folder Tabs" window — drag that window's tab next to the Project window's tab
-/// to get quick-access folder buttons alongside it.
+/// Lets you pin folders from the Project window ("Add Folder Tab") and browse their contents
+/// from a dockable "Folder Tabs" window — drag that window's tab next to the Project window's
+/// tab to get a "Prefabs" tab, a "Materials" tab, etc., each showing just that folder's assets.
 /// </summary>
 public class FolderTabsWindow : EditorWindow
 {
+    [SerializeField] private int activeTabIndex = -1;
+    [SerializeField] private string contentSearch = string.Empty;
+    private Vector2 tabScrollPosition;
+    private Vector2 contentScrollPosition;
+
     [MenuItem("ColdSnap/Project/Folder Tabs")]
     public static void FocusOrOpen()
     {
@@ -31,6 +36,7 @@ public class FolderTabsWindow : EditorWindow
     private void OnGUI()
     {
         IReadOnlyList<FolderTabEntry> tabs = FolderTabsService.Tabs;
+        ClampActiveIndex(tabs.Count);
 
         if (tabs.Count == 0)
         {
@@ -40,10 +46,28 @@ public class FolderTabsWindow : EditorWindow
             return;
         }
 
-        float maxWidth = Mathf.Max(position.width - 10f, 100f);
-        float usedWidth = 0f;
+        DrawTabStrip(tabs);
+        DrawContent(tabs[activeTabIndex]);
+    }
 
+    private void ClampActiveIndex(int count)
+    {
+        if (count == 0)
+        {
+            activeTabIndex = -1;
+        }
+        else if (activeTabIndex < 0 || activeTabIndex >= count)
+        {
+            activeTabIndex = 0;
+        }
+    }
+
+    private void DrawTabStrip(IReadOnlyList<FolderTabEntry> tabs)
+    {
+        tabScrollPosition = EditorGUILayout.BeginScrollView(
+            tabScrollPosition, GUIStyle.none, GUIStyle.none, GUILayout.Height(24f));
         EditorGUILayout.BeginHorizontal();
+
         for (int i = 0; i < tabs.Count; i++)
         {
             FolderTabEntry entry = tabs[i];
@@ -52,42 +76,94 @@ public class FolderTabsWindow : EditorWindow
             string label = string.IsNullOrEmpty(entry.Label)
                 ? (missing ? "(missing)" : System.IO.Path.GetFileName(path))
                 : entry.Label;
-
             var content = new GUIContent(label, EditorGUIUtility.IconContent("Folder Icon").image);
-            Vector2 size = GUI.skin.button.CalcSize(content);
-
-            if (usedWidth > 0f && usedWidth + size.x > maxWidth)
-            {
-                EditorGUILayout.EndHorizontal();
-                EditorGUILayout.BeginHorizontal();
-                usedWidth = 0f;
-            }
-            usedWidth += size.x + 4f;
 
             using (new EditorGUI.DisabledScope(missing))
             {
-                if (GUILayout.Button(content, GUILayout.Height(24)))
+                bool isActive = i == activeTabIndex;
+                bool pressed = GUILayout.Toggle(
+                    isActive, content, EditorStyles.toolbarButton, GUILayout.Height(22f), GUILayout.MinWidth(60f));
+                if (pressed && !isActive)
                 {
-                    SelectFolder(path);
+                    activeTabIndex = i;
+                    contentScrollPosition = Vector2.zero;
                 }
             }
 
             HandleTabContextMenu(entry, i, tabs.Count);
         }
+
         EditorGUILayout.EndHorizontal();
+        EditorGUILayout.EndScrollView();
     }
 
-    private static void SelectFolder(string path)
+    private void DrawContent(FolderTabEntry entry)
     {
-        UnityEngine.Object folder = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(path);
-        if (folder == null)
+        string folderPath = AssetDatabase.GUIDToAssetPath(entry.Guid);
+        if (string.IsNullOrEmpty(folderPath))
+        {
+            EditorGUILayout.HelpBox("This folder no longer exists. Remove the tab or restore the folder.", MessageType.Warning);
+            return;
+        }
+
+        EditorGUILayout.BeginHorizontal(EditorStyles.toolbar);
+        GUI.SetNextControlName("FolderTabsSearchField");
+        contentSearch = EditorGUILayout.TextField(contentSearch, EditorStyles.toolbarSearchField);
+        EditorGUILayout.EndHorizontal();
+
+        List<string> assetPaths = FolderTabsContentCache.GetContents(folderPath, contentSearch);
+        if (assetPaths.Count == 0)
+        {
+            EditorGUILayout.HelpBox(
+                string.IsNullOrEmpty(contentSearch) ? "This folder is empty." : "No assets match your search.",
+                MessageType.Info);
+            return;
+        }
+
+        contentScrollPosition = EditorGUILayout.BeginScrollView(contentScrollPosition);
+        foreach (string assetPath in assetPaths)
+        {
+            DrawAssetRow(assetPath, folderPath);
+        }
+        EditorGUILayout.EndScrollView();
+    }
+
+    private static void DrawAssetRow(string assetPath, string tabFolderPath)
+    {
+        UnityEngine.Object asset = AssetDatabase.LoadMainAssetAtPath(assetPath);
+        if (asset == null)
         {
             return;
         }
 
-        EditorUtility.FocusProjectWindow();
-        Selection.activeObject = folder;
-        EditorGUIUtility.PingObject(folder);
+        Rect rowRect = EditorGUILayout.BeginHorizontal(GUILayout.Height(20f));
+        var content = new GUIContent(asset.name, AssetDatabase.GetCachedIcon(assetPath));
+        GUILayout.Label(content, GUILayout.Height(18f));
+        GUILayout.FlexibleSpace();
+
+        string parentPath = System.IO.Path.GetDirectoryName(assetPath)?.Replace('\\', '/');
+        if (!string.IsNullOrEmpty(parentPath) && parentPath != tabFolderPath)
+        {
+            string relative = parentPath.Length > tabFolderPath.Length
+                ? parentPath.Substring(tabFolderPath.Length + 1)
+                : parentPath;
+            GUILayout.Label(relative, EditorStyles.miniLabel);
+        }
+        EditorGUILayout.EndHorizontal();
+
+        Event evt = Event.current;
+        if (evt.type == EventType.MouseDown && rowRect.Contains(evt.mousePosition))
+        {
+            Selection.activeObject = asset;
+            EditorGUIUtility.PingObject(asset);
+
+            if (evt.clickCount == 2)
+            {
+                AssetDatabase.OpenAsset(asset);
+            }
+
+            evt.Use();
+        }
     }
 
     private static void HandleTabContextMenu(FolderTabEntry entry, int index, int count)
@@ -123,6 +199,44 @@ public class FolderTabsWindow : EditorWindow
 
         menu.ShowAsContext();
         evt.Use();
+    }
+}
+
+internal static class FolderTabsContentCache
+{
+    public static List<string> GetContents(string folderPath, string searchFilter)
+    {
+        var result = new List<string>();
+        if (string.IsNullOrEmpty(folderPath) || !AssetDatabase.IsValidFolder(folderPath))
+        {
+            return result;
+        }
+
+        string[] guids = AssetDatabase.FindAssets(string.Empty, new[] { folderPath });
+        var seen = new HashSet<string>();
+
+        foreach (string guid in guids)
+        {
+            string assetPath = AssetDatabase.GUIDToAssetPath(guid);
+            if (AssetDatabase.IsValidFolder(assetPath) || !seen.Add(assetPath))
+            {
+                continue;
+            }
+
+            if (!string.IsNullOrEmpty(searchFilter) &&
+                System.IO.Path.GetFileNameWithoutExtension(assetPath).IndexOf(searchFilter, StringComparison.OrdinalIgnoreCase) < 0)
+            {
+                continue;
+            }
+
+            result.Add(assetPath);
+        }
+
+        result.Sort((a, b) => string.Compare(
+            System.IO.Path.GetFileNameWithoutExtension(a),
+            System.IO.Path.GetFileNameWithoutExtension(b),
+            StringComparison.OrdinalIgnoreCase));
+        return result;
     }
 }
 
