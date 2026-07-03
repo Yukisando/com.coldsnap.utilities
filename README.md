@@ -20,7 +20,7 @@ The package is aimed at teams that want focused utilities without adopting a lar
 
 - `FakeKeyboarder`: emit a configured string one character at a time to simulate typing.
 - `FakeKeyboardTextTarget`: receive characters from `FakeKeyboarder` and write them into compatible UI text or input components.
-- `SliderExtensions`: extension methods for `UnityEngine.UI.Slider`, starting with `BindTextToValue`, which keeps a `TMP_Text` in sync with a slider's value.
+- `SliderValueTextBinder`: drop on the GameObject with your `TMP_Text`, then wire it into a `Slider`'s `On Value Changed` event (Dynamic float) in the Inspector to display the slider's value with no code.
 
 ### Templates and package helpers
 
@@ -40,7 +40,7 @@ Use `ColdSnap/Tools/Auto Apply Android Keystore Passwords` only if your local se
 
 For runtime typing simulations, add `FakeKeyboarder` to a GameObject and either subscribe to its `OnType` event in code or hook its inspector event to another component. If you want a ready-made bridge, add `FakeKeyboardTextTarget`, assign the source `FakeKeyboarder`, and point it at a compatible text-bearing component. The bridge is reflection-based so it can work with common Unity UI and TextMeshPro-style text targets without taking a hard TMP package dependency.
 
-To keep a slider's value mirrored on a label, call `slider.BindTextToValue(myTmpText)` from code (for example in `OnEnable`). It writes the current value immediately and keeps it updated as the slider changes; pass a `format` string or a `formatter` callback for custom display, and keep the returned listener to pass into `slider.UnbindTextFromValue(...)` on cleanup.
+To show a slider's live value on a label without writing any code, add `SliderValueTextBinder` to the GameObject that has the `TMP_Text` (it will auto-fill the `text` field from the same object, or you can assign a different one). Then on the `Slider`, open the `On Value Changed (Single)` list in the Inspector, add an element, drag in that GameObject, and pick `SliderValueTextBinder.SetValue` under the `Dynamic float` group. The label updates immediately whenever the slider changes; the `Format`, `Prefix`, and `Suffix` fields on the binder control how the number is displayed.
 
 ## Package scope
 
