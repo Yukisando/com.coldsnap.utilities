@@ -105,6 +105,12 @@ public class PlatformBuilder : EditorWindow
 		window.autoRepaintOnSceneChange = true;
 	}
 
+	[MenuItem("ColdSnap/Project/Player Settings")]
+	static void OpenPlayerSettings()
+	{
+		SettingsService.OpenProjectSettings("Project/Player");
+	}
+
 	void OnEnable()
 	{
 		// Ensure settings is initialized before doing anything else
