@@ -1,119 +1,572 @@
 <!DOCTYPE html>
 <html lang="en-us">
 
-	<head>
-		<meta charset="utf-8">
-		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-		<title>{{{ PRODUCT_NAME }}}</title>
-		<style>
-		html,
-		body {
-			background: {{{ BACKGROUND || '#000' }}};
-			width: 100%;
-			height: 100%;
-			overflow: visible;
-			padding: 0;
-			margin: 0;
-		}
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+        <title>{{{ PRODUCT_NAME }}}</title>
+        <style>
+        html,
+        body {
+            /* Bright, clean fallback background */
+            background: {{{ BACKGROUND || '#f4f7f9' }}}; 
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            padding: 0;
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
 
-		div#gameContainer {
-			background: transparent !important;
-			position: absolute;
-		}
+        div#gameContainer {
+            background: transparent !important;
+            position: absolute;
+            border-radius: 4px;
+            overflow: hidden;
+            /* Softer, wider shadow for a modern feel */
+            box-shadow: 0 16px 50px rgba(0, 0, 0, 0.12);
+            transition: border-radius 0.3s ease;
+        }
 
-		div#gameContainer canvas {
-			position: absolute;
-		}
+        div#gameContainer canvas {
+            position: absolute;
+            border-radius: 4px;
+            transition: border-radius 0.3s ease;
+        }
 
-		div#gameContainer canvas[data-pixel-art="true"] {
-			position: absolute;
-			image-rendering: optimizeSpeed;
-			image-rendering: -webkit-crisp-edges;
-			image-rendering: -moz-crisp-edges;
-			image-rendering: -o-crisp-edges;
-			image-rendering: crisp-edges;
-			image-rendering: -webkit-optimize-contrast;
-			image-rendering: optimize-contrast;
-			image-rendering: pixelated;
-			-ms-interpolation-mode: nearest-neighbor;
-		}
-	</style>
-	</head>
+        /* Fullscreen Class dynamically added via JS for F11 support */
+        div#gameContainer.fullscreen-mode,
+        div#gameContainer.fullscreen-mode canvas,
+        div#gameContainer.fullscreen-mode #loadingOverlay {
+            border-radius: 0 !important;
+            box-shadow: none;
+        }
 
-	<body>
-		<div id="gameContainer">
-			<canvas id="unity-canvas"
-				data-pixel-art="{{{ OPTIMIZE_FOR_PIXEL_ART }}}"></canvas>
-			<script src="Build/{{{ LOADER_FILENAME }}}"></script>
-			<script>
-			var canvas = document.querySelector("#unity-canvas");
-			var config = {
-				dataUrl: "Build/{{{ DATA_FILENAME }}}",
-				frameworkUrl: "Build/{{{ FRAMEWORK_FILENAME }}}",
-				codeUrl: "Build/{{{ CODE_FILENAME }}}",
+        /* Loading overlay */
+        #loadingOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            background: rgba(248, 250, 252, 0.92);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 16px;
+            z-index: 2;
+            transition: opacity 0.6s ease, border-radius 0.3s ease;
+            color: #1e293b;
+        }
+
+        #loadingOverlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #loadingTitle {
+            font-size: 1.6rem;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            background: linear-gradient(135deg, #1e293b 0%, #64748b 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.25rem;
+        }
+
+        #loadingLabel {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: #94a3b8;
+        }
+
+        .ld {
+            width: 3px;
+            height: 3px;
+            border-radius: 50%;
+            background: #94a3b8;
+            animation: ldpulse 1.4s ease-in-out infinite;
+        }
+        .ld:nth-child(2) { animation-delay: 0.2s; }
+        .ld:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes ldpulse {
+            0%, 80%, 100% { transform: scale(0.5); opacity: 0.3; }
+            40% { transform: scale(1.2); opacity: 1; }
+        }
+
+        #loadingTrack {
+            width: 220px;
+            height: 3px;
+            background: rgba(0, 0, 0, 0.07);
+            border-radius: 999px;
+            overflow: hidden;
+        }
+
+        #loadingFill {
+            width: 0%;
+            height: 100%;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #63a4ff, #a78bfa, #ff4757);
+            background-size: 200% 100%;
+            position: relative;
+            overflow: hidden;
+            transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            animation: gradshift 2.5s ease infinite;
+        }
+
+        #loadingFill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 55%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.55), transparent);
+            animation: shimmer 1.6s ease-in-out infinite;
+        }
+
+        @keyframes gradshift {
+            0%   { background-position: 0% 50%; }
+            50%  { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        @keyframes shimmer {
+            to { left: 220%; }
+        }
+
+        #loadingPercent {
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: #cbd5e1;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: 0.08em;
+        }
+
+        /* Floating volume control - Minimalist light theme */
+        #volumeControl {
+            position: fixed;
+            /* Placement is driven by data-position (set from Unity Player Settings).
+               These edge values double as the fallback if an unknown value is given. */
+            bottom: 24px;
+            right: 24px;
+            top: auto;
+            left: auto;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 16px 10px 12px;
+            background: rgba(255, 255, 255, 0.85);
+            border: 1px solid rgba(99, 164, 255, 0.25); /* Baby blue subtle border */
+            border-radius: 999px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            user-select: none;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        /* Rocker placement options (Unity ROCKER_POSITION custom field) */
+        #volumeControl[data-position="bottom-right"]  { top: auto; bottom: 24px; left: auto; right: 24px; }
+        #volumeControl[data-position="bottom-left"]   { top: auto; bottom: 24px; left: 24px; right: auto; }
+        #volumeControl[data-position="top-right"]     { top: 24px; bottom: auto; left: auto; right: 24px; }
+        #volumeControl[data-position="top-left"]      { top: 24px; bottom: auto; left: 24px; right: auto; }
+        #volumeControl[data-position="top-center"]    { top: 24px; bottom: auto; left: 50%; right: auto; transform: translateX(-50%); }
+        #volumeControl[data-position="bottom-center"] { top: auto; bottom: 24px; left: 50%; right: auto; transform: translateX(-50%); }
+
+        /* Hover lift (kept center-aware so centered placements don't snap to the edge) */
+        #volumeControl:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
+        }
+
+        #volumeControl[data-position="top-center"]:hover,
+        #volumeControl[data-position="bottom-center"]:hover {
+            transform: translateX(-50%) translateY(-2px);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
+        }
+
+        #fullscreenToggle {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            padding: 0;
+            border: none;
+            background: transparent;
+            border-radius: 50%;
+            cursor: pointer;
+            flex: none;
+        }
+
+        #fullscreenToggle:hover {
+            background: rgba(99, 164, 255, 0.08);
+        }
+
+        #fullscreenToggle:focus-visible {
+            outline: 2px solid rgba(99, 164, 255, 0.45);
+            outline-offset: 2px;
+        }
+
+        #fullscreenToggle svg {
+            width: 16px;
+            height: 16px;
+            fill: #475569;
+            transition: fill 0.2s ease, transform 0.2s ease;
+        }
+
+        #fullscreenToggle:hover svg {
+            fill: #63a4ff;
+            transform: scale(1.08);
+        }
+
+        #volumeIcon {
+            cursor: pointer;
+            width: 20px;
+            height: 20px;
+            fill: #475569;
+            flex: none;
+            transition: fill 0.2s ease, transform 0.2s ease;
+        }
+
+        #volumeIcon:hover {
+            fill: #ff4757; /* Bright red hover state */
+            transform: scale(1.1);
+        }
+
+        #volumeSlider {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 80px;
+            height: 4px;
+            border-radius: 999px;
+            background: rgba(0, 0, 0, 0.08);
+            outline: none;
+            cursor: pointer;
+        }
+
+        #volumeSlider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #63a4ff; /* Baby blue thumb */
+            box-shadow: 0 0 8px rgba(99, 164, 255, 0.6);
+            cursor: pointer;
+            transition: transform 0.1s ease;
+        }
+
+        #volumeSlider::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        #volumeSlider::-moz-range-thumb {
+            width: 14px;
+            height: 14px;
+            border: none;
+            border-radius: 50%;
+            background: #63a4ff;
+            box-shadow: 0 0 8px rgba(99, 164, 255, 0.6);
+            cursor: pointer;
+            transition: transform 0.1s ease;
+        }
+
+        #volumeSlider::-moz-range-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        div#gameContainer canvas[data-pixel-art="true"] {
+            position: absolute;
+            image-rendering: optimizeSpeed;
+            image-rendering: -webkit-crisp-edges;
+            image-rendering: -moz-crisp-edges;
+            image-rendering: -o-crisp-edges;
+            image-rendering: crisp-edges;
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: optimize-contrast;
+            image-rendering: pixelated;
+            -ms-interpolation-mode: nearest-neighbor;
+        }
+    </style>
+        <script>
+        // Install a master gain node so we can control the whole page's audio
+        (function () {
+            var OrigAC = window.AudioContext || window.webkitAudioContext;
+            if (!OrigAC) return;
+
+            window.__masterVolume = 0.5;
+
+            var origConnect = AudioNode.prototype.connect;
+            AudioNode.prototype.connect = function (dest) {
+                if (dest && dest.context && dest === dest.context.destination && dest.context.__masterGain) {
+                    // Reroute anything wiring straight to the speakers through the master gain node.
+                    return origConnect.call(this, dest.context.__masterGain);
+                }
+                return origConnect.apply(this, arguments);
+            };
+
+            function PatchedAC() {
+                var ctx = new OrigAC();
+                var gain = ctx.createGain();
+                gain.gain.value = window.__masterVolume;
+                origConnect.call(gain, ctx.destination);
+                ctx.__masterGain = gain;
+                window.__masterGain = gain;
+                return ctx;
+            }
+            PatchedAC.prototype = OrigAC.prototype;
+            window.AudioContext = PatchedAC;
+            window.webkitAudioContext = PatchedAC;
+        })();
+
+        function setMasterVolume(v) {
+            window.__masterVolume = v;
+            if (window.__masterGain) {
+                window.__masterGain.gain.value = v;
+            }
+        }
+
+        (function () {
+            var BLOCKED_CTRL_KEYS = {
+                d: true, s: true, p: true, f: true, g: true, e: true, h: true, j: true, o: true, u: true
+            };
+
+            window.addEventListener("keydown", function (e) {
+                var ctrl = e.ctrlKey || e.metaKey;
+                if (!ctrl) return;
+                if (e.altKey) return; 
+
+                var key = (e.key || "").toLowerCase();
+                if (BLOCKED_CTRL_KEYS[key]) {
+                    e.preventDefault();
+                }
+            }, false);
+        })();
+
+        </script>
+    </head>
+
+    <body>
+        <div id="gameContainer">
+            <canvas id="unity-canvas" data-pixel-art="{{{ OPTIMIZE_FOR_PIXEL_ART }}}"></canvas>
+            <div id="loadingOverlay">
+                <div id="loadingTitle">{{{ PRODUCT_NAME }}}</div>
+                <div id="loadingLabel">
+                    Loading
+                    <span class="ld"></span>
+                    <span class="ld"></span>
+                    <span class="ld"></span>
+                </div>
+                <div id="loadingTrack">
+                    <div id="loadingFill"></div>
+                </div>
+                <div id="loadingPercent">0%</div>
+            </div>
+            <script src="Build/{{{ LOADER_FILENAME }}}"></script>
+            <script>
+            var canvas = document.querySelector("#unity-canvas");
+            var config = {
+                dataUrl: "Build/{{{ DATA_FILENAME }}}",
+                frameworkUrl: "Build/{{{ FRAMEWORK_FILENAME }}}",
+                codeUrl: "Build/{{{ CODE_FILENAME }}}",
 #if MEMORY_FILENAME
-				memoryUrl: "Build/{{{ MEMORY_FILENAME }}}",
+                memoryUrl: "Build/{{{ MEMORY_FILENAME }}}",
 #endif
 #if SYMBOLS_FILENAME
-				symbolsUrl: "Build/{{{ SYMBOLS_FILENAME }}}",
+                symbolsUrl: "Build/{{{ SYMBOLS_FILENAME }}}",
 #endif
-				streamingAssetsUrl: "StreamingAssets",
-				companyName: "{{{ COMPANY_NAME }}}",
-				productName: "{{{ PRODUCT_NAME }}}",
-				productVersion: "{{{ PRODUCT_VERSION }}}",
-			};
-			var scaleToFit;
-			try {
-				scaleToFit = !!JSON.parse("{{{ SCALE_TO_FIT }}}");
-			} catch (e) {
-				scaleToFit = true;
-			}
-			function progressHandler(progress) {
-				var percent = progress * 100 + '%';
-				canvas.style.background = 'linear-gradient(to right, white, white ' + percent + ', transparent ' + percent + ', transparent) no-repeat center';
-				canvas.style.backgroundSize = '100% 1rem';
-			}
-			function onResize() {
-				var container = canvas.parentElement;
-				var w;
-				var h;
+                streamingAssetsUrl: "StreamingAssets",
+                companyName: "{{{ COMPANY_NAME }}}",
+                productName: "{{{ PRODUCT_NAME }}}",
+                productVersion: "{{{ PRODUCT_VERSION }}}",
+                matchWebGLToCanvasSize: false,
+                devicePixelRatio: 1,
+            };
 
-				if (scaleToFit) {
-					w = window.innerWidth;
-					h = window.innerHeight;
+            var RENDER_WIDTH = {{{ WIDTH }}};
+            var RENDER_HEIGHT = {{{ HEIGHT }}};
 
-					var r = {{{ HEIGHT }}} / {{{ WIDTH }}};
+            var loadingOverlay = document.querySelector("#loadingOverlay");
+            var loadingFill = document.querySelector("#loadingFill");
+            var loadingPercent = document.querySelector("#loadingPercent");
 
-					if (w * r > window.innerHeight) {
-						w = Math.min(w, Math.ceil(h / r));
-					}
-					h = Math.floor(w * r);
-				} else {
-					w = {{{ WIDTH }}};
-					h = {{{ HEIGHT }}};
-				}
+            function progressHandler(progress) {
+                var percent = Math.round(progress * 100);
+                loadingFill.style.width = percent + '%';
+                loadingPercent.textContent = percent + '%';
+                if (progress >= 1) {
+                    loadingOverlay.classList.add('hidden');
+                }
+            }
 
-				container.style.width = canvas.style.width = w + "px";
-				container.style.height = canvas.style.height = h + "px";
-				container.style.top = Math.floor((window.innerHeight - h) / 2) + "px";
-				container.style.left = Math.floor((window.innerWidth - w) / 2) + "px";
-			}
-			createUnityInstance(canvas, config, progressHandler).then(function (instance) {
-				canvas = instance.Module.canvas;
-				onResize();
-			});
-			window.addEventListener('resize', onResize);
-			onResize();
+            var PADDING = 24;
 
-			if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-				// Mobile device style: fill the whole browser client area with the game canvas:
-				const meta = document.createElement('meta');
-				meta.name = 'viewport';
-				meta.content = 'width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes';
-				document.getElementsByTagName('head')[0].appendChild(meta);
-			}
-		</script>
-		</div>
-	</body>
+            function onResize() {
+                var container = canvas.parentElement;
+
+                var aspect = RENDER_WIDTH / RENDER_HEIGHT;
+                
+                // Detects HTML5 Fullscreen OR F11 Browser Fullscreen
+                var isFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement || 
+                                     (window.innerWidth === screen.width && window.innerHeight === screen.height));
+                
+                var padding = isFullscreen ? 0 : PADDING;
+                
+                // Toggle a class to let CSS strip borders easily
+                if (isFullscreen) {
+                    container.classList.add('fullscreen-mode');
+                } else {
+                    container.classList.remove('fullscreen-mode');
+                }
+
+                var availW = Math.max(1, window.innerWidth - padding * 2);
+                var availH = Math.max(1, window.innerHeight - padding * 2);
+                var w = availW;
+                var h = availH;
+                if (availW / availH > aspect) {
+                    w = Math.ceil(availH * aspect);
+                } else {
+                    h = Math.ceil(availW / aspect);
+                }
+
+                // Render at the displayed size (capped at RENDER_WIDTH×RENDER_HEIGHT)
+                // instead of always paying the full framebuffer fill cost when the
+                // canvas is shown smaller than that.
+                var renderCap = Math.min(1, RENDER_WIDTH / w, RENDER_HEIGHT / h);
+                canvas.width = Math.max(1, Math.round(w * renderCap));
+                canvas.height = Math.max(1, Math.round(h * renderCap));
+
+                container.style.width = canvas.style.width = w + "px";
+                container.style.height = canvas.style.height = h + "px";
+                container.style.top = Math.floor((window.innerHeight - h) / 2) + "px";
+                container.style.left = Math.floor((window.innerWidth - w) / 2) + "px";
+            }
+
+            createUnityInstance(canvas, config, progressHandler).then(function (instance) {
+                canvas = instance.Module.canvas;
+                onResize();
+            });
+            window.addEventListener('resize', onResize);
+            onResize();
+
+            if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+                const meta = document.createElement('meta');
+                meta.name = 'viewport';
+                meta.content = 'width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes';
+                document.head.appendChild(meta);
+            }
+        </script>
+        </div>
+
+        <!-- ROCKER_POSITION accepts: bottom-right | bottom-left | top-right | top-left | top-center | bottom-center -->
+        <div id="volumeControl" title="Volume" data-position="{{{ ROCKER_POSITION || 'bottom-right' }}}">
+            <svg id="volumeIcon" viewBox="0 0 24 24" aria-label="Toggle mute" role="button">
+                <path id="volumeIconPath" d="M3 10v4h4l5 5V5L7 10H3zm13.5 2A4.5 4.5 0 0 0 14 7.97v8.05A4.5 4.5 0 0 0 16.5 12zM14 3.23v2.06a7 7 0 0 1 0 13.42v2.06a9 9 0 0 0 0-17.54z"/>
+            </svg>
+            <input id="volumeSlider" type="range" min="0" max="1" step="0.01" value="0.5" aria-label="Volume">
+            <button id="fullscreenToggle" type="button" aria-label="Enter fullscreen" title="Enter fullscreen">
+                <svg id="fullscreenIcon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path id="fullscreenIconPath" d="M5 5h4V3H3v6h2V5zm14 0v4h2V3h-6v2h4zm-4 14h4v-4h2v6h-6v-2zm-10 0h4v2H3v-6h2v4z"/>
+                </svg>
+            </button>
+        </div>
+
+        <script>
+        (function () {
+            var slider = document.querySelector("#volumeSlider");
+            var icon = document.querySelector("#volumeIcon");
+            var iconPath = document.querySelector("#volumeIconPath");
+            var fullscreenToggle = document.querySelector("#fullscreenToggle");
+            var fullscreenIconPath = document.querySelector("#fullscreenIconPath");
+
+            var SPEAKER = "M3 10v4h4l5 5V5L7 10H3zm13.5 2A4.5 4.5 0 0 0 14 7.97v8.05A4.5 4.5 0 0 0 16.5 12zM14 3.23v2.06a7 7 0 0 1 0 13.42v2.06a9 9 0 0 0 0-17.54z";
+            var MUTED = "M3 10v4h4l5 5V5L7 10H3zm13.59 2 2.7-2.71-1.41-1.41L15.17 10.6 12.46 7.9 11.05 9.3l2.71 2.7-2.71 2.71 1.41 1.41 2.71-2.7 2.7 2.7 1.42-1.41z";
+            var OPEN_FULLSCREEN = "M5 5h4V3H3v6h2V5zm14 0v4h2V3h-6v2h4zm-4 14h4v-4h2v6h-6v-2zm-10 0h4v2H3v-6h2v4z";
+            var CLOSE_FULLSCREEN = "M9 3H3v6h2V5h4V3zm6 0v2h4v4h2V3h-6zM9 21H3v-6h2v4h4v2zm12-6h-2v4h-4v2h6v-6z";
+
+            var lastVolume = 0.5;
+
+            function isFullscreen() {
+                return !!(document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement);
+            }
+
+            function applyVolume(v) {
+                setMasterVolume(v);
+                iconPath.setAttribute("d", v <= 0 ? MUTED : SPEAKER);
+            }
+
+            function applyFullscreenIcon() {
+                var fs = isFullscreen();
+                fullscreenIconPath.setAttribute("d", fs ? CLOSE_FULLSCREEN : OPEN_FULLSCREEN);
+                fullscreenToggle.setAttribute("aria-label", fs ? "Exit fullscreen" : "Enter fullscreen");
+                fullscreenToggle.title = fs ? "Exit fullscreen" : "Enter fullscreen";
+            }
+
+            function toggleFullscreen() {
+                if (!isFullscreen()) {
+                    if (document.documentElement.requestFullscreen) {
+                        document.documentElement.requestFullscreen();
+                    } else if (document.documentElement.webkitRequestFullscreen) {
+                        document.documentElement.webkitRequestFullscreen();
+                    } else if (document.documentElement.msRequestFullscreen) {
+                        document.documentElement.msRequestFullscreen();
+                    }
+                } else {
+                    if (document.exitFullscreen) {
+                        document.exitFullscreen();
+                    } else if (document.webkitExitFullscreen) {
+                        document.webkitExitFullscreen();
+                    } else if (document.msExitFullscreen) {
+                        document.msExitFullscreen();
+                    }
+                }
+            }
+
+            slider.addEventListener("input", function () {
+                var v = parseFloat(slider.value);
+                if (v > 0) lastVolume = v;
+                applyVolume(v);
+            });
+
+            icon.addEventListener("click", function () {
+                var current = parseFloat(slider.value);
+                if (current > 0) {
+                    lastVolume = current;
+                    slider.value = 0;
+                    applyVolume(0);
+                } else {
+                    slider.value = lastVolume;
+                    applyVolume(lastVolume);
+                }
+            });
+
+            fullscreenToggle.addEventListener("click", function (e) {
+                e.stopPropagation();
+                toggleFullscreen();
+            });
+
+            ["fullscreenchange", "webkitfullscreenchange", "msfullscreenchange"].forEach(function (eventName) {
+                document.addEventListener(eventName, applyFullscreenIcon);
+            });
+
+            applyVolume(0.5);
+            applyFullscreenIcon();
+        })();
+        </script>
+    </body>
 
 </html>
