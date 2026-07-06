@@ -1318,7 +1318,7 @@ public class PlatformBuilder : EditorWindow
 			Debug.Log($"Build succeeded: {summary.outputPath}");
 
 			if (settings.selectedPlatform == BuildPlatform.MacOS)
-				CreateMacOSPermissionsScript(Path.GetDirectoryName(summary.outputPath), appName);
+				CreateMacOSLaunchScript(Path.GetDirectoryName(summary.outputPath), appName);
 
 			if (zipToDesktop)
 			{
@@ -1327,8 +1327,11 @@ public class PlatformBuilder : EditorWindow
 				{
 					string zipPath = ZipBuildToDesktop(appName, zipSource, zipIsDirectory);
 					EditorUtility.ClearProgressBar();
+					string zipCompleteMsg = $"Build and zip completed!\n\nZIP saved to:\n{zipPath}";
+					if (settings.selectedPlatform == BuildPlatform.MacOS)
+						zipCompleteMsg += $"\n\nOn macOS: unzip and double-click 'Launch {appName}.command' — it fixes permissions and launches the app in one step (no Terminal needed).";
 					if (EditorUtility.DisplayDialog("Build & Zip Complete",
-						$"Build and zip completed!\n\nZIP saved to:\n{zipPath}",
+						zipCompleteMsg,
 						"Open Desktop", "Close"))
 					{
 						string desktopPath = Path.GetDirectoryName(zipPath);
@@ -1402,7 +1405,7 @@ public class PlatformBuilder : EditorWindow
 			{
 				string completionMsg = $"Build completed successfully!\n\nPath: {summary.outputPath}";
 				if (settings.selectedPlatform == BuildPlatform.MacOS)
-					completionMsg += "\n\nA 'fix_permissions.sh' script was created alongside the build. Run it on macOS if the app can't be launched.";
+					completionMsg += $"\n\nA 'Launch {appName}.command' file was created alongside the build. On macOS, double-click it to fix permissions and launch the app.\n\nNote: since this folder was built directly on Windows (no execute bit on NTFS), the .command file may need one manual 'chmod +x' before its first double-click. Use 'Build & Zip to Desktop' instead to get a build where this isn't necessary.";
 				completionMsg += "\n\nOpen build folder?";
 				if (EditorUtility.DisplayDialog("Build Complete", completionMsg, "Yes", "No"))
 				{
@@ -1496,7 +1499,7 @@ public class PlatformBuilder : EditorWindow
 		if (entryName.Contains("/MacOS/"))
 			return true;
 		string ext = Path.GetExtension(fileName).ToLower();
-		if (ext == ".dylib" || ext == ".so")
+		if (ext == ".dylib" || ext == ".so" || ext == ".command")
 			return true;
 		// Framework/bundle executables have no extension
 		if (string.IsNullOrEmpty(ext) && (entryName.Contains(".framework/") || entryName.Contains(".bundle/")))
@@ -1504,16 +1507,21 @@ public class PlatformBuilder : EditorWindow
 		return false;
 	}
 
-	void CreateMacOSPermissionsScript(string buildFolder, string appName)
+	void CreateMacOSLaunchScript(string buildFolder, string appName)
 	{
-		string scriptPath = Path.Combine(buildFolder, "fix_permissions.sh");
+		// A .command file (not .sh) so Finder runs it in Terminal on double-click
+		// instead of opening it in a text editor. It fixes the exec bit (lost when
+		// building from Windows), clears the quarantine flag, then launches the app.
+		string scriptPath = Path.Combine(buildFolder, $"Launch {appName}.command");
 		string content =
 			"#!/bin/bash\n" +
-			"# Run this on macOS to fix execute permissions after building on Windows.\n" +
-			"SCRIPT_DIR=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)\"\n" +
-			$"chmod -R +x \"$SCRIPT_DIR/{appName}.app/Contents/MacOS/\"\n" +
-			$"echo \"Done — {appName}.app should now be launchable.\"\n";
+			"# Double-click this file to fix permissions and launch the app.\n" +
+			"DIR=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)\"\n" +
+			$"APP=\"$DIR/{appName}.app\"\n" +
+			"xattr -cr \"$APP\" 2>/dev/null\n" +
+			"chmod -R +x \"$APP/Contents/MacOS/\"\n" +
+			"open \"$APP\"\n";
 		File.WriteAllText(scriptPath, content, new System.Text.UTF8Encoding(false));
-		Debug.Log($"[PlatformBuilder] fix_permissions.sh created in: {buildFolder}");
+		Debug.Log($"[PlatformBuilder] Launch {appName}.command created in: {buildFolder}");
 	}
 }
