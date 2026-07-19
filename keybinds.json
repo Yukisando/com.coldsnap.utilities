@@ -1,0 +1,74 @@
+{
+    "m_Id": "Default copy",
+    "m_ParentId": "",
+    "m_Entries": [
+        {
+            "identifier": {
+                "path": "Main Menu/Assets/Open C# Project"
+            },
+            "combinations": [
+                {
+                    "m_KeyCode": 282,
+                    "m_Modifiers": 0
+                }
+            ]
+        },
+        {
+            "identifier": {
+                "path": "Scene View/Toggle 2D Mode"
+            },
+            "combinations": [
+                {
+                    "m_KeyCode": 50,
+                    "m_Modifiers": 4
+                }
+            ]
+        },
+        {
+            "identifier": {
+                "path": "Main Menu/File/Save As..."
+            },
+            "combinations": []
+        },
+        {
+            "identifier": {
+                "path": "Main Menu/Assets/Properties..."
+            },
+            "combinations": [
+                {
+                    "m_KeyCode": 326,
+                    "m_Modifiers": 0
+                }
+            ]
+        },
+        {
+            "identifier": {
+                "path": "Main Menu/Assets/Generate"
+            },
+            "combinations": []
+        },
+        {
+            "identifier": {
+                "path": "Main Menu/Tools/More Mountains/Group Selection"
+            },
+            "combinations": []
+        },
+        {
+            "identifier": {
+                "path": "Main Menu/Edit/Lighting/Generate Lighting"
+            },
+            "combinations": []
+        },
+        {
+            "identifier": {
+                "path": "Main Menu/Window/UI Toolkit/UI Builder"
+            },
+            "combinations": [
+                {
+                    "m_KeyCode": 117,
+                    "m_Modifiers": 6
+                }
+            ]
+        }
+    ]
+}
