@@ -28,7 +28,10 @@ public class SceneQuickOpenWindow : EditorWindow
 
     private void OnGUI()
     {
-        SceneQuickOpenGui.Draw(ref searchQuery, ref scrollPosition, ref focusSearchField, true);
+        if (SceneQuickOpenGui.Draw(ref searchQuery, ref scrollPosition, ref focusSearchField, true))
+        {
+            Close();
+        }
     }
 }
 
@@ -36,7 +39,7 @@ internal static class SceneQuickOpenGui
 {
     private const string SearchFieldControlName = "SceneQuickOpenSearchField";
 
-    public static void Draw(ref string searchQuery, ref Vector2 scrollPosition, ref bool focusSearchField, bool showRefreshButton)
+    public static bool Draw(ref string searchQuery, ref Vector2 scrollPosition, ref bool focusSearchField, bool showRefreshButton)
     {
         bool enterPressed = false;
         DrawToolbar(ref searchQuery, ref focusSearchField, showRefreshButton, ref enterPressed);
@@ -47,7 +50,7 @@ internal static class SceneQuickOpenGui
         if (enterPressed && scenes.Count > 0)
         {
             SceneQuickOpenService.OpenSingle(scenes[0].Path);
-            return;
+            return true;
         }
 
         if (scenes.Count == 0)
@@ -56,7 +59,7 @@ internal static class SceneQuickOpenGui
                 ? "No scenes were found under Assets."
                 : "No scenes match the current search.";
             EditorGUILayout.HelpBox(message, MessageType.Info);
-            return;
+            return false;
         }
 
         scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition);
@@ -65,6 +68,7 @@ internal static class SceneQuickOpenGui
             DrawSceneRow(scene);
         }
         EditorGUILayout.EndScrollView();
+        return false;
     }
 
     private static void DrawToolbar(ref string searchQuery, ref bool focusSearchField, bool showRefreshButton, ref bool enterPressed)
@@ -159,7 +163,10 @@ internal sealed class SceneQuickOpenPopupContent : PopupWindowContent
     public override void OnGUI(Rect rect)
     {
         GUILayout.Space(4f);
-        SceneQuickOpenGui.Draw(ref searchQuery, ref scrollPosition, ref focusSearchField, true);
+        if (SceneQuickOpenGui.Draw(ref searchQuery, ref scrollPosition, ref focusSearchField, true))
+        {
+            EditorWindow.focusedWindow?.Close();
+        }
     }
 }
 

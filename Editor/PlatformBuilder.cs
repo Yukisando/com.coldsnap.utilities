@@ -105,8 +105,7 @@ public class PlatformBuilder : EditorWindow
 		window.autoRepaintOnSceneChange = true;
 	}
 
-	[MenuItem("ColdSnap/Project/Player Settings")]
-	static void OpenPlayerSettings()
+	private void OpenPlayerSettings()
 	{
 		SettingsService.OpenProjectSettings("Project/Player");
 	}
@@ -349,6 +348,10 @@ public class PlatformBuilder : EditorWindow
 		if (GUILayout.Button("Switch Platform", GUILayout.Width(110)))
 		{
 			SwitchActivePlatform();
+		}
+		if (GUILayout.Button("Player Settings", GUILayout.Width(110)))
+		{
+			OpenPlayerSettings();
 		}
 		EditorGUILayout.EndHorizontal();
 
