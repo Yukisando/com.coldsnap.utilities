@@ -346,13 +346,17 @@ internal static class FolderTabsContextMenu
 
 internal static class FolderTabsService
 {
+    private const string SettingsAssetPath = "Assets/ColdSnap/Settings/ColdSnapFolderTabs.asset";
+    private const string LegacySettingsAssetPath = "ProjectSettings/ColdSnapFolderTabs.asset";
+    private static FolderTabsSettings settings;
+
     public static event Action Changed;
 
-    public static IReadOnlyList<FolderTabEntry> Tabs => FolderTabsSettings.instance.Tabs;
+    public static IReadOnlyList<FolderTabEntry> Tabs => GetSettings().Tabs;
 
     public static bool IsPinned(string guid)
     {
-        return FolderTabsSettings.instance.Tabs.Any(t => t.Guid == guid);
+        return GetSettings().Tabs.Any(t => t.Guid == guid);
     }
 
     public static void AddTab(string guid, string label)
@@ -362,19 +366,19 @@ internal static class FolderTabsService
             return;
         }
 
-        FolderTabsSettings.instance.Tabs.Add(new FolderTabEntry { Guid = guid, Label = label });
+        GetSettings().Tabs.Add(new FolderTabEntry { Guid = guid, Label = label });
         Save();
     }
 
     public static void RemoveTab(string guid)
     {
-        FolderTabsSettings.instance.Tabs.RemoveAll(t => t.Guid == guid);
+        GetSettings().Tabs.RemoveAll(t => t.Guid == guid);
         Save();
     }
 
     public static void RenameTab(string guid, string newLabel)
     {
-        FolderTabEntry entry = FolderTabsSettings.instance.Tabs.FirstOrDefault(t => t.Guid == guid);
+        FolderTabEntry entry = GetSettings().Tabs.FirstOrDefault(t => t.Guid == guid);
         if (entry == null)
         {
             return;
@@ -386,7 +390,7 @@ internal static class FolderTabsService
 
     public static void MoveTab(int fromIndex, int toIndex)
     {
-        List<FolderTabEntry> tabs = FolderTabsSettings.instance.Tabs;
+        List<FolderTabEntry> tabs = GetSettings().Tabs;
         if (fromIndex < 0 || fromIndex >= tabs.Count || toIndex < 0 || toIndex >= tabs.Count)
         {
             return;
@@ -398,21 +402,89 @@ internal static class FolderTabsService
         Save();
     }
 
+    private static FolderTabsSettings GetSettings()
+    {
+        if (settings != null)
+        {
+            return settings;
+        }
+
+        settings = AssetDatabase.LoadAssetAtPath<FolderTabsSettings>(SettingsAssetPath);
+        if (settings == null)
+        {
+            settings = AssetDatabase.LoadAssetAtPath<FolderTabsSettings>(LegacySettingsAssetPath);
+            if (settings != null)
+            {
+                string newPath = SettingsAssetPath;
+                string folderPath = System.IO.Path.GetDirectoryName(newPath)?.Replace('\\', '/');
+                if (!string.IsNullOrEmpty(folderPath) && !AssetDatabase.IsValidFolder(folderPath))
+                {
+                    string parentFolder = System.IO.Path.GetDirectoryName(folderPath)?.Replace('\\', '/');
+                    if (!string.IsNullOrEmpty(parentFolder) && parentFolder != "Assets" && AssetDatabase.IsValidFolder(parentFolder))
+                    {
+                        AssetDatabase.CreateFolder(parentFolder, System.IO.Path.GetFileName(folderPath));
+                    }
+                    else
+                    {
+                        AssetDatabase.CreateFolder("Assets", "ColdSnap");
+                        AssetDatabase.CreateFolder("Assets/ColdSnap", "Settings");
+                    }
+                }
+
+                if (AssetDatabase.MoveAsset(LegacySettingsAssetPath, SettingsAssetPath))
+                {
+                    settings = AssetDatabase.LoadAssetAtPath<FolderTabsSettings>(SettingsAssetPath);
+                }
+            }
+        }
+
+        if (settings == null)
+        {
+            string folderPath = System.IO.Path.GetDirectoryName(SettingsAssetPath)?.Replace('\\', '/');
+            if (!string.IsNullOrEmpty(folderPath) && !AssetDatabase.IsValidFolder(folderPath))
+            {
+                string parentFolder = System.IO.Path.GetDirectoryName(folderPath)?.Replace('\\', '/');
+                if (!string.IsNullOrEmpty(parentFolder) && parentFolder != "Assets" && AssetDatabase.IsValidFolder(parentFolder))
+                {
+                    AssetDatabase.CreateFolder(parentFolder, System.IO.Path.GetFileName(folderPath));
+                }
+                else
+                {
+                    AssetDatabase.CreateFolder("Assets", "ColdSnap");
+                    AssetDatabase.CreateFolder("Assets/ColdSnap", "Settings");
+                }
+            }
+
+            settings = ScriptableObject.CreateInstance<FolderTabsSettings>();
+            AssetDatabase.CreateAsset(settings, SettingsAssetPath);
+            AssetDatabase.SaveAssets();
+        }
+
+        return settings;
+    }
+
     private static void Save()
     {
-        FolderTabsSettings.instance.Persist();
+        FolderTabsSettings currentSettings = GetSettings();
+        if (currentSettings == null)
+        {
+            return;
+        }
+
+        EditorUtility.SetDirty(currentSettings);
+        AssetDatabase.SaveAssets();
         Changed?.Invoke();
     }
 }
 
-[FilePath("ProjectSettings/ColdSnapFolderTabs.asset", FilePathAttribute.Location.ProjectFolder)]
-internal sealed class FolderTabsSettings : ScriptableSingleton<FolderTabsSettings>
+internal sealed class FolderTabsSettings : ScriptableObject
 {
     public List<FolderTabEntry> Tabs = new List<FolderTabEntry>();
 
     public void Persist()
     {
-        Save(true);
+        EditorUtility.SetDirty(this);
+        AssetDatabase.SaveAssets();
     }
 }
 
