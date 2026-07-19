@@ -431,7 +431,7 @@ internal static class FolderTabsService
                     }
                 }
 
-                if (AssetDatabase.MoveAsset(LegacySettingsAssetPath, SettingsAssetPath))
+                if (string.IsNullOrEmpty(AssetDatabase.MoveAsset(LegacySettingsAssetPath, SettingsAssetPath)))
                 {
                     settings = AssetDatabase.LoadAssetAtPath<FolderTabsSettings>(SettingsAssetPath);
                 }
