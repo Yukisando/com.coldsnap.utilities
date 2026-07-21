@@ -309,11 +309,52 @@ internal static class SceneQuickOpenService
             return CachedScenes.ToList();
         }
 
+        string query = searchQuery.Trim();
+
+        // Score matches so that scenes with the query in their Name
+        // are ranked higher than scenes that only match in the Path.
+        // Lower score = higher priority.
         return CachedScenes
-            .Where(scene =>
-                scene.Name.IndexOf(searchQuery, StringComparison.OrdinalIgnoreCase) >= 0 ||
-                scene.Path.IndexOf(searchQuery, StringComparison.OrdinalIgnoreCase) >= 0)
+            .Select(scene => new
+            {
+                Scene = scene,
+                Score = GetMatchScore(scene, query)
+            })
+            .Where(x => x.Score < int.MaxValue)
+            .OrderBy(x => x.Score)
+            .ThenBy(x => x.Scene.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(x => x.Scene)
             .ToList();
+    }
+
+    private static int GetMatchScore(SceneQuickOpenEntry scene, string query)
+    {
+        // 0: exact name match
+        // 1: name starts with query
+        // 2: name contains query
+        // 3: path contains query
+        // int.MaxValue: no match
+        if (string.Equals(scene.Name, query, StringComparison.OrdinalIgnoreCase))
+        {
+            return 0;
+        }
+
+        if (scene.Name.StartsWith(query, StringComparison.OrdinalIgnoreCase))
+        {
+            return 1;
+        }
+
+        if (scene.Name.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            return 2;
+        }
+
+        if (scene.Path.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            return 3;
+        }
+
+        return int.MaxValue;
     }
 
     public static void RefreshScenes()
