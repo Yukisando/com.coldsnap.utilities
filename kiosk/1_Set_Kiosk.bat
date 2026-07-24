@@ -1,9 +1,11 @@
 @echo off
-:: Ensure we are in the correct folder
+:: ============================================================
+:: WINDOWS KIOSK SETUP TOOL
+:: Run this as Administrator.
+:: ============================================================
 pushd "%~dp0"
 cd /d "%~dp0"
 
-:: Set Variables
 set "WorkDir=%~dp0"
 set "GamePath=%WorkDir%kiosk.exe"
 set "GameName=kiosk"
@@ -14,13 +16,11 @@ echo ====================================================
 echo             WINDOWS KIOSK SETUP TOOL
 echo ====================================================
 echo Current Folder: %WorkDir%
-echo Targeted User:  %UserName%
+echo Kiosk Account:  %UserName%
 echo.
 
 :: --- 1. CREATE THE WATCHDOG ---
 echo [1/4] Creating watchdog script...
-
-:: We write lines one by one to avoid grouped-block errors
 echo @echo off > "kiosk_watchdog.bat"
 echo title kiosk_watchdog.bat >> "kiosk_watchdog.bat"
 echo :loop >> "kiosk_watchdog.bat"
@@ -34,10 +34,9 @@ echo goto loop >> "kiosk_watchdog.bat"
 if exist "kiosk_watchdog.bat" (
     echo SUCCESS: Watchdog created.
 ) else (
-    echo ERROR: Could not create watchdog file!
-    echo Check if the folder is Read-Only.
+    echo ERROR: Could not create watchdog file! Check if the folder is Read-Only.
     pause
-    exit
+    exit /b 1
 )
 
 :: --- 2. CONFIGURE AUTO-LOGON ---
@@ -61,4 +60,17 @@ echo.
 echo ----------------------------------------------------
 echo SETUP COMPLETE!
 echo ----------------------------------------------------
-pause
+echo On next boot, this machine will auto-logon as "%UserName%"
+echo and launch kiosk.exe via the watchdog script.
+echo.
+echo To exit kiosk mode later, run kiosk_remove.bat as Administrator.
+echo ----------------------------------------------------
+echo.
+set /p DoRestart="Restart now to enter kiosk mode? (Y/N): "
+if /i "%DoRestart%"=="Y" (
+    echo Restarting in 5 seconds...
+    shutdown /r /t 5
+) else (
+    echo Setup complete. Restart manually whenever you're ready.
+    pause
+)

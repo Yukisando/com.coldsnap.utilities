@@ -1,31 +1,52 @@
 @echo off
-set "WorkDir=%~dp0"
+:: ============================================================
+:: WINDOWS KIOSK REMOVAL TOOL
+:: Run this as Administrator to fully undo kiosk_setup.bat.
+:: ============================================================
+cls
+echo ====================================================
+echo             WINDOWS KIOSK REMOVAL TOOL
+echo ====================================================
+echo.
 
-echo --- RESTORING WINDOWS TO NORMAL MODE ---
+:: --- 1. STOP THE WATCHDOG AND GAME ---
+echo [1/4] Stopping watchdog and game processes...
+taskkill /FI "WINDOWTITLE eq kiosk_watchdog.bat" /IM cmd.exe /F >nul 2>&1
+taskkill /IM kiosk.exe /F >nul 2>&1
+echo Done.
 
-:: 1. RESTORE DEFAULT SHELL
-echo Restoring Explorer.exe...
-reg delete "HKCU\Software\Microsoft\Windows NT\CurrentVersion\Winlogon" /v Shell /f
+:: --- 2. REMOVE THE SHELL OVERRIDE (restores explorer.exe) ---
+echo [2/4] Removing kiosk Shell override...
+reg delete "HKCU\Software\Microsoft\Windows NT\CurrentVersion\Winlogon" /v Shell /f >nul 2>&1
+echo Done.
 
-:: 2. DISABLE AUTO-LOGON
-echo Disabling Auto-Logon...
-reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" /v AutoAdminLogon /t REG_SZ /d 0 /f
+:: --- 3. DISABLE AUTO-LOGON ---
+echo [3/4] Disabling Auto-Logon...
+reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" /v AutoAdminLogon /t REG_SZ /d 0 /f >nul
+reg delete "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" /v DefaultPassword /f >nul 2>&1
+reg add "HKLM\SYSTEM\CurrentControlSet\Control\Lsa" /v LimitBlankPasswordUse /t REG_DWORD /d 1 /f >nul
+echo Done.
 
-:: 3. KILL KIOSK PROCESSES
-echo Closing Kiosk processes...
-taskkill /F /IM cmd.exe /FI "WINDOWTITLE eq kiosk_watchdog.bat" 2>nul
-taskkill /F /IM "kiosk.exe" 2>nul
-
-:: 4. CLEAN UP WATCHDOG
-if exist "%WorkDir%kiosk_watchdog.bat" (
-    del "%WorkDir%kiosk_watchdog.bat"
-)
-
-:: 5. RESTART EXPLORER
-echo Restarting Desktop...
-taskkill /f /im explorer.exe 2>nul
-start explorer.exe
+:: --- 4. RESTORE A NORMAL DESKTOP RIGHT NOW ---
+echo [4/4] Launching Explorer...
+start "" explorer.exe
 
 echo.
-echo Done! Computer restored to normal.
+echo ----------------------------------------------------
+echo KIOSK MODE REMOVED
+echo ----------------------------------------------------
+echo Your desktop is back for this session. The Shell and
+echo Auto-Logon settings are fully reverted, and will apply
+echo cleanly from the next reboot onward.
+echo.
+echo IMPORTANT: Your account still has a BLANK password
+echo (that part of kiosk_setup.bat is not reversed here,
+echo since only you know what you want it set to). Set one
+echo with:
+echo.
+echo     net user %USERNAME% *
+echo.
+echo (running that from an elevated Command Prompt will
+echo prompt you to type a new password).
+echo ----------------------------------------------------
 pause
