@@ -3,6 +3,13 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.UI;
 
+// Unity 6.3 replaced 32-bit instance IDs with EntityId in the hierarchy callbacks.
+#if UNITY_6000_3_OR_NEWER
+using HierarchyItemId = UnityEngine.EntityId;
+#else
+using HierarchyItemId = System.Int32;
+#endif
+
 /// <summary>
 /// Intercepts texture/sprite drag-and-drop onto Canvas objects in the Hierarchy and
 /// creates an Image instead of Unity's default UI Image (sprite) behaviour.
@@ -16,7 +23,11 @@ public static class ImageDropHandler
 
     static ImageDropHandler()
     {
+#if UNITY_6000_3_OR_NEWER
+        EditorApplication.hierarchyWindowItemByEntityIdOnGUI += OnHierarchyGUI;
+#else
         EditorApplication.hierarchyWindowItemOnGUI += OnHierarchyGUI;
+#endif
     }
 
     // ── Menu ────────────────────────────────────────────────────────────────
@@ -35,7 +46,7 @@ public static class ImageDropHandler
 
     // ── Drag handler ────────────────────────────────────────────────────────
 
-    static void OnHierarchyGUI(int instanceId, Rect selectionRect)
+    static void OnHierarchyGUI(HierarchyItemId itemId, Rect selectionRect)
     {
         if (!IsEnabled()) return;
 
@@ -46,7 +57,11 @@ public static class ImageDropHandler
         var sprites = CollectSprites();
         if (sprites.Count == 0) return;
 
-        var target = EditorUtility.InstanceIDToObject(instanceId) as GameObject;
+#if UNITY_6000_3_OR_NEWER
+        var target = EditorUtility.EntityIdToObject(itemId) as GameObject;
+#else
+        var target = EditorUtility.InstanceIDToObject(itemId) as GameObject;
+#endif
         if (target == null || !IsInCanvas(target)) return;
 
         DragAndDrop.visualMode = DragAndDropVisualMode.Copy;
