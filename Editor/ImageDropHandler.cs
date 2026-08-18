@@ -3,8 +3,8 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.UI;
 
-// Unity 6.3 replaced 32-bit instance IDs with EntityId in the hierarchy callbacks.
-#if UNITY_6000_3_OR_NEWER
+// Unity 6.4 replaced 32-bit instance IDs with EntityId in the hierarchy callbacks.
+#if UNITY_6000_4_OR_NEWER
 using HierarchyItemId = UnityEngine.EntityId;
 #else
 using HierarchyItemId = System.Int32;
@@ -23,7 +23,7 @@ public static class ImageDropHandler
 
     static ImageDropHandler()
     {
-#if UNITY_6000_3_OR_NEWER
+#if UNITY_6000_4_OR_NEWER
         EditorApplication.hierarchyWindowItemByEntityIdOnGUI += OnHierarchyGUI;
 #else
         EditorApplication.hierarchyWindowItemOnGUI += OnHierarchyGUI;
@@ -57,7 +57,7 @@ public static class ImageDropHandler
         var sprites = CollectSprites();
         if (sprites.Count == 0) return;
 
-#if UNITY_6000_3_OR_NEWER
+#if UNITY_6000_4_OR_NEWER
         var target = EditorUtility.EntityIdToObject(itemId) as GameObject;
 #else
         var target = EditorUtility.InstanceIDToObject(itemId) as GameObject;
