@@ -9,10 +9,6 @@ using System.Threading.Tasks;
 using UnityEditor;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
-// These scripts compile into Assembly-CSharp-Editor, so a game type named `Environment`
-// in the global namespace would otherwise shadow System.Environment.
-using Environment = System.Environment;
-using PlatformID = System.PlatformID;
 
 #endregion
 
@@ -456,8 +452,9 @@ public class GitCommandsMenu : EditorWindow
             int pid = process.Id;
             Log($"   Killing git process {pid} ({reason}).");
 
-            // Environment, not Application.platform: this can run on the worker thread when a command times out.
-            if (Environment.OSVersion.Platform == PlatformID.Win32NT) {
+            // global::System.Environment, not Application.platform: this can run on the worker thread when a
+            // command times out, and consuming projects may declare their own global-namespace `Environment` type.
+            if (global::System.Environment.OSVersion.Platform == global::System.PlatformID.Win32NT) {
                 // git spawns helpers (credential manager, ssh); killing only the parent can leave them holding locks.
                 try {
                     using (var killer = new Process()) {
@@ -583,7 +580,7 @@ public class GitCommandsMenu : EditorWindow
             lock (LogFileLock) {
                 string dir = Path.GetDirectoryName(logFilePath);
                 if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
-                File.AppendAllText(logFilePath, line + Environment.NewLine);
+                File.AppendAllText(logFilePath, line + global::System.Environment.NewLine);
             }
         } catch {
             // Logging must never be the thing that breaks a commit.
