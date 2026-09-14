@@ -9,6 +9,10 @@ using System.Threading.Tasks;
 using UnityEditor;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
+// These scripts compile into Assembly-CSharp-Editor, so a game type named `Environment`
+// in the global namespace would otherwise shadow System.Environment.
+using Environment = System.Environment;
+using PlatformID = System.PlatformID;
 
 #endregion
 
