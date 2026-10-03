@@ -1,0 +1,60 @@
+#!/bin/sh
+# After every commit: bump package.json to the next date-based version
+# (YYYYMMDD.N.0) and record the commit title in CHANGELOG.md, then fold both
+# into the commit that was just made. Unity's Package Manager shows that
+# version, and its "Changelog" link opens CHANGELOG.md.
+#
+# Enable once per clone:  git config core.hooksPath .githooks
+
+# Our own amend below re-runs this hook.
+[ -n "$COLDSNAP_BUMPING" ] && exit 0
+
+gitdir=$(git rev-parse --git-dir) || exit 0
+# Leave rebases, merges, cherry-picks and reverts alone.
+for state in rebase-merge rebase-apply MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD; do
+	[ -e "$gitdir/$state" ] && exit 0
+done
+# An amend already got its version when it was first committed.
+case "$(git reflog -1 --format=%gs 2>/dev/null)" in
+	"commit (amend)"*) exit 0 ;;
+esac
+
+cd "$(git rev-parse --show-toplevel)" || exit 0
+
+# A commit that only touches the version files is a manual bump: keep it.
+changed=$(git diff-tree --no-commit-id --name-only -r HEAD | grep -v -x -e package.json -e CHANGELOG.md)
+[ -z "$changed" ] && exit 0
+
+# Don't sweep someone's unstaged edits into the amend.
+if ! git diff --quiet -- package.json CHANGELOG.md; then
+	echo "post-commit: package.json/CHANGELOG.md have unstaged changes, version not bumped." >&2
+	exit 0
+fi
+
+current=$(sed -n 's/^[[:space:]]*"version":[[:space:]]*"\([^"]*\)".*/\1/p' package.json | head -n 1)
+today=$(date -u +%Y%m%d)
+major=${current%%.*}
+rest=${current#*.}
+minor=${rest%%.*}
+if [ "$major" = "$today" ]; then
+	new="$today.$((minor + 1)).0"
+else
+	new="$today.0.0"
+fi
+
+sed -i "s/^\([[:space:]]*\"version\":[[:space:]]*\"\)[^\"]*\"/\1$new\"/" package.json
+
+if [ ! -f CHANGELOG.md ]; then
+	printf '# Changelog\n\nOne entry per commit, written by `.githooks/post-commit`.\n' > CHANGELOG.md
+fi
+HEADING="## [$new] - $(date -u +%Y-%m-%d)" \
+TITLE="- $(git log -1 --format=%s)" \
+awk '
+	!done && /^## / { print ENVIRON["HEADING"]; print ENVIRON["TITLE"]; print ""; done = 1 }
+	{ print }
+	END { if (!done) { print ""; print ENVIRON["HEADING"]; print ENVIRON["TITLE"] } }
+' CHANGELOG.md > CHANGELOG.md.tmp && mv CHANGELOG.md.tmp CHANGELOG.md
+
+git add package.json CHANGELOG.md
+COLDSNAP_BUMPING=1 git commit --amend --no-edit --no-verify -q
+echo "post-commit: ColdSnap Utilities $current -> $new"

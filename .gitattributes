@@ -1,0 +1,2 @@
+# Hook scripts must keep LF endings: with CRLF, sh fails on the shebang line
+.githooks/* text eol=lf

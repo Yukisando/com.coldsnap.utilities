@@ -1,0 +1,146 @@
+# Changelog
+
+One entry per commit, written by `.githooks/post-commit`. Versions are date-based: `YYYYMMDD.N.0` is the N+1th release of that day (UTC).
+
+## [20261003.0.0] - 2026-10-03
+- feat: auto version bump + changelog per commit, Check for Updates window
+
+## Earlier history (before automatic versioning; everything after May 16 still showed 20260516.1.0)
+- 2026-10-03 feat: auto-increment Android Version Code on build in PlatformBuilder
+- 2026-09-14 fix: resolve namespace conflicts by using global:: for System.Environment and System.PlatformID
+- 2026-09-14 fix: remove duplicate using directives for Environment and PlatformID in GitCommandsMenu
+- 2026-09-08 feat: enhance GitCommandsMenu with improved logging and command handling
+- 2026-08-18 fix: update Unity version check for EntityId in ImageDropHandler
+- 2026-07-30 fix warning
+- 2026-07-24 better kiosks
+- 2026-07-21 feat: enhance scene search ranking in SceneQuickOpenService for improved user experience
+- 2026-07-19 fix: update asset movement check in FolderTabsService for better error handling
+- 2026-07-19 feat: add keybinds configuration file for improved user shortcuts
+- 2026-07-19 feat: refactor FolderTabsService to use GetSettings method for improved settings management
+- 2026-07-19 feat: add Player Settings button to PlatformBuilder and improve SceneQuickOpenWindow functionality
+- 2026-07-06 feat: add menu item to open Player Settings in project settings
+- 2026-07-06 feat: enhance WebGL template with modern UI elements, loading overlay, and volume control features
+- 2026-07-06 feat: update macOS build script to create Launch command for easier app execution
+- 2026-07-03 fix: update OnHierarchyGUI method to use correct parameters for drag-and-drop functionality
+- 2026-07-03 feat: enhance FolderTabsWindow with tab management and content filtering features
+- 2026-07-03 feat: add metadata file for FolderTabs to support asset management in the editor
+- 2026-07-03 feat: replace SliderExtensions with SliderValueTextBinder for easier TMP_Text binding to Slider value updates; add FolderTabs feature for quick-access folder management in Project window
+- 2026-07-02 feat: add SliderExtensions for binding TMP_Text to Slider value updates
+- 2026-07-01 fix: update parameter type for OnHierarchyGUI method in ImageDropHandler
+- 2026-07-01 fix: update Android package identifier retrieval to use NamedBuildTarget in PlatformBuilder fix: change hierarchy window item event to use entity ID in ImageDropHandler
+- 2026-06-27 feat: enhance platform selection UI and implement platform switching functionality in PlatformBuilder
+- 2026-06-26 feat: add force clean build option and implement output deletion in PlatformBuilder
+- 2026-06-26 fix: specify CompressionLevel namespace for clarity in zip entry creation
+- 2026-06-26 feat: add macOS permissions script and zip handling for Unix permissions
+- 2026-06-24 refactor: simplify GUI layout code in GitCommandsMenu for better readability
+- 2026-06-23 feat: implement deferred window closing on successful Git operations
+- 2026-06-23 feat: enhance RunGitSequence to support closing the window on success
+- 2026-06-22 feat: enhance GitCommandsMenu with improved UI and functionality for commit and push operations
+- 2026-06-19 fix: update Android scripting backend retrieval to use NamedBuildTarget
+- 2026-06-04 refactor: streamline scene sync warning messages in PlatformBuilder
+- 2026-06-04 feat: add scene synchronization feature to ensure build settings consistency
+- 2026-05-16 feat: enhance TMP Font Replacer with asset filtering and improved UI
+- 2026-05-16 feat: add TMP Font Scene Replacer tool for updating TMP fonts in scenes and prefabs
+- 2026-05-14 feat: add Center Pivot tools for Bottom Center and Bottom Left
+- 2026-05-14 refactor: remove Center Pivot tools for Bottom Center and Bottom Left
+- 2026-05-14 fix: correct pivot calculations and preserve MeshCollider
+- 2026-05-14 chore: add meta files for new pivot tools
+- 2026-05-14 fix: move IgnoreScene and UnignoreScene methods to class level
+- 2026-05-14 chore: remove GitHub Action version bumper (now handled by pre-commit hook)
+- 2026-05-14 feat: add Center Pivot to Bottom Center and Bottom Left tools
+- 2026-05-14 chore: bump package version [skip ci]
+- 2026-05-14 Merge branch 'main' of https://github.com/Yukisando/com.coldsnap.utilities
+- 2026-05-14 feat: add Center Pivot functionality for Bottom Center and Bottom Left
+- 2026-05-07 chore: bump package version [skip ci]
+- 2026-05-07 Merge branch 'main' of https://github.com/Yukisando/com.coldsnap.utilities
+- 2026-05-07 feat: add scene ignore functionality to PlatformBuilder
+- 2026-05-07 chore: bump package version [skip ci]
+- 2026-05-07 Merge branch 'main' of https://github.com/Yukisando/com.coldsnap.utilities
+- 2026-05-07 refactor: remove RawImageDropHandler as part of the transition to ImageDropHandler
+- 2026-05-07 feat: add ImageDropHandler for enhanced drag-and-drop sprite functionality
+- 2026-05-07 feat: replace RawImageDropHandler with ImageDropHandler for improved sprite handling
+- 2026-05-07 chore: bump package version [skip ci]
+- 2026-05-07 refactor: rename RawImageDropHandler to ImageDropHandler and update related functionality
+- 2026-05-06 chore: bump package version [skip ci]
+- 2026-05-06 Merge branch 'main' of https://github.com/Yukisando/com.coldsnap.utilities
+- 2026-05-06 feat: implement streaming assets management in PlatformBuilder
+- 2026-05-05 chore: bump package version [skip ci]
+- 2026-05-05 feat: add RawImageDropHandler for drag-and-drop functionality in Canvas
+- 2026-04-28 chore: bump package version [skip ci]
+- 2026-04-28 Merge branch 'main' of https://github.com/Yukisando/com.coldsnap.utilities
+- 2026-04-28 fix: specify CompressionLevel namespace in ZipFile methods for clarity
+- 2026-04-28 chore: bump package version [skip ci]
+- 2026-04-28 Merge branch 'main' of https://github.com/Yukisando/com.coldsnap.utilities
+- 2026-04-28 feat: add build and zip functionality to PlatformBuilder; implement spinner during build process
+- 2026-04-10 chore: bump package version [skip ci]
+- 2026-04-10 Merge branch 'main' of https://github.com/Yukisando/com.coldsnap.utilities
+- 2026-04-10 feat: update README and add AGENTS documentation; implement FakeKeyboarder and FakeKeyboardTextTarget classes
+- 2026-04-09 chore: bump package version [skip ci]
+- 2026-04-09 Merge branch 'main' of https://github.com/Yukisando/com.coldsnap.utilities
+- 2026-04-09 auto inputfiled focus and quick unload
+- 2026-04-09 chore: bump package version [skip ci]
+- 2026-04-09 Merge branch 'main' of https://github.com/Yukisando/com.coldsnap.utilities
+- 2026-04-09 feat: enhance SceneQuickOpenToolbar for Unity 6.0+ with main toolbar integration
+- 2026-04-09 chore: bump package version [skip ci]
+- 2026-04-09 Merge branch 'main' of https://github.com/Yukisando/com.coldsnap.utilities
+- 2026-04-09 fix: specify UnityEditor namespace for PopupWindow usage
+- 2026-04-09 chore: bump package version [skip ci]
+- 2026-04-09 Merge branch 'main' of https://github.com/Yukisando/com.coldsnap.utilities
+- 2026-04-09 Refactor SceneQuickOpenWindow and enhance scene search functionality
+- 2026-04-09 chore: bump package version [skip ci]
+- 2026-04-09 Add Scene Quick Open window and auto bump package version workflow
+- 2026-03-31 Add initial README.md with project overview and usage instructions
+- 2026-03-31 Add kiosk setup and restore scripts for Windows environment
+- 2026-03-09 Added ABB build option with developer settings
+- 2025-11-05 Remove ColdSnap menu item for toggling teleport player on play
+- 2025-11-05 Refactor menu item paths for AutoGroup and PlatformBuilder to include ColdSnap prefix
+- 2025-09-22 Add force lowercase option and adjust UI layout in PlatformBuilder
+- 2025-09-20 Add migration state XML files for Copilot
+- 2025-09-19 Add functionality to open and clear build folder path in PlatformBuilder
+- 2025-09-15 Implement file-based settings storage for PlatformBuilder
+- 2025-08-30 better android support
+- 2025-08-05 modifed shrotcut
+- 2025-07-31 New build folder save
+- 2025-07-31 Better build window
+- 2025-07-31 Update PlatformBuilder.cs
+- 2025-07-30 revert back
+- 2025-07-30 Update PlatformBuilder.cs
+- 2025-07-30 Update PlatformBuilder.cs
+- 2025-07-30 .
+- 2025-07-30 Add scene ordering and selection persistence to PlatformBuilder
+- 2025-07-25 new attempts at exclusing packages scenes
+- 2025-07-24 Now a selecteable list of scenes instead of having to go to scene settings
+- 2025-07-07 Add AutoGroup editor tool for grouping GameObjects
+- 2025-07-07 Add tool to center pivot to mesh center of mass in Unity
+- 2025-07-02 automatic to lower
+- 2025-07-01 Automatically focus the commit message text area when the window opens. Bind the Return key to execute the "Commit + Push" action.
+- 2025-07-01 .
+- 2025-06-30 added meta files
+- 2025-06-30 Added json format for locales
+- 2025-06-29 tries to snap player to SpawnPoint if present
+- 2025-06-27 Dimiss window straight after commiting
+- 2025-06-24 Hidden shells + log feedback
+- 2025-06-23 1
+- 2025-06-23 more logs and feedback
+- 2025-06-23 .
+- 2025-06-23 Git push no longer waits unity
+- 2025-06-22 2
+- 2025-06-22 1
+- 2025-06-22 .
+- 2025-06-22 .
+- 2025-06-22 .
+- 2025-06-22 .
+- 2025-06-22 .
+- 2025-06-22 .
+- 2025-06-22 added meta
+- 2025-06-22 Adde meta file
+- 2025-06-22 Added kiosk web template
+- 2025-06-17 showing shell when pushing
+- 2025-06-16 better menu sorting
+- 2025-06-13 Moved all tools to dedicated ColdSnap menu
+- 2025-06-13 rider stuff
+- 2025-06-12 Added teleport to scene view
+- 2025-06-12 Add files via upload
+- 2025-06-12 Add files via upload
+- 2025-06-12 Update package.json
+- 2025-06-12 Add files via upload

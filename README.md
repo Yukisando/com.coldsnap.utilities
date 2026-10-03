@@ -11,6 +11,7 @@ The package is aimed at teams that want focused utilities without adopting a lar
 - `Platform Builder`: build Windows, macOS, Android APK, Android App Bundle, and WebGL targets from one editor window with saved scene selections and build preferences.
 - `Scene Quick Open`: search and open scenes found under `Assets` without digging through the Project view.
 - `Git Commands`: open a simple commit-and-push window from inside the editor.
+- `Check for Updates`: compare the installed package commit/version with the latest on GitHub and update in one click.
 - `Auto Group`: wrap the current top-level selection in a new parent object.
 - `Center Pivot To Mesh CoM`: move a mesh pivot to its area-weighted center of mass while keeping the object visually in place.
 - `Toggle Teleport Player On Play`: move a `Player` object to the Scene view camera when entering Play Mode, then restore it when returning to Edit Mode.
@@ -61,27 +62,23 @@ This package now uses a date-based semver scheme:
 - `20260409.0.0`: first release on April 9, 2026
 - `20260409.1.0`: second release on the same day
 
-The repository also includes a GitHub Actions workflow that automatically bumps `package.json` after each push to `main`.
+Every commit bumps the version automatically. The versioned hook `.githooks/post-commit` sets `package.json` to the next date-based version, adds the commit title to `CHANGELOG.md` (opened by the **Changelog** link in Package Manager), and folds both into the same commit. It skips amends, merges, rebases and cherry-picks.
 
-Use `tools/Bump-PackageVersion.ps1` if you want to bump locally before pushing:
+Enable it once per clone (git never pushes hook settings):
+
+```bash
+git config core.hooksPath .githooks
+```
+
+Use `tools/Bump-PackageVersion.ps1` only for a manual bump (for example a pre-release label):
 
 ```powershell
-./tools/Bump-PackageVersion.ps1
 ./tools/Bump-PackageVersion.ps1 -PreReleaseLabel preview
 ```
 
-Automatic flow:
+### Checking you're on the latest version
 
-1. Push your package changes to `main`.
-2. GitHub Actions updates `package.json` to the next date-based version and pushes that commit.
-3. In the consuming Unity project, refresh or update the package source.
-
-Manual flow:
-
-1. Run the version bump script.
-2. Commit the updated `package.json`.
-3. Push `main`.
-4. In the consuming Unity project, refresh or update the package source.
+Package Manager's Version History only ever lists the installed entry for Git packages. Use **ColdSnap > Package > Check for Updates** instead: it shows the installed version and commit, the latest on GitHub with its title and changelog, and an **Update to latest** button. It also checks once per editor session and logs a warning when the project is behind.
 
 If the consuming project references this package by Git URL on the `main` branch, Unity can pick up the new commit when the package refreshes. If the project references a fixed Git tag or a registry version, you still need to publish a new tag or package version there.
 
