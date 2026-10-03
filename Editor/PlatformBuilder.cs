@@ -557,6 +557,13 @@ public class PlatformBuilder : EditorWindow
 
 		DrawStreamingAssetsSection();
 
+		// Version code matters for every Android build: an APK only installs as an
+		// update (sideload or MDM) when its code is higher than the installed one.
+		if (settings.selectedPlatform == BuildPlatform.Android || settings.selectedPlatform == BuildPlatform.AAB)
+		{
+			DrawAndroidVersioning();
+		}
+
 		// AAB / Google Play settings
 		if (settings.selectedPlatform == BuildPlatform.AAB)
 		{
@@ -742,6 +749,24 @@ public class PlatformBuilder : EditorWindow
 
 	Vector2 aabScrollPosition;
 
+	void DrawAndroidVersioning()
+	{
+		EditorGUILayout.Space();
+		GUILayout.Label("Versioning", EditorStyles.boldLabel);
+		PlayerSettings.bundleVersion = EditorGUILayout.TextField("Version Name", PlayerSettings.bundleVersion);
+		PlayerSettings.Android.bundleVersionCode = EditorGUILayout.IntField("Version Code", PlayerSettings.Android.bundleVersionCode);
+		bool autoIncrement = EditorGUILayout.Toggle("Auto-increment on Build", settings.autoIncrementVersionCode);
+		if (autoIncrement != settings.autoIncrementVersionCode)
+		{
+			settings.autoIncrementVersionCode = autoIncrement;
+			SaveSettings();
+		}
+		if (settings.autoIncrementVersionCode)
+			EditorGUILayout.HelpBox($"Next build will be Version Code {PlayerSettings.Android.bundleVersionCode + 1}. A failed build keeps the current code.", MessageType.Info);
+		else
+			EditorGUILayout.HelpBox("Version Code must go up with each Google Play upload, and most device managers (MDM) only push an update with a higher code.", MessageType.Info);
+	}
+
 	void DrawAABSettings()
 	{
 		EditorGUILayout.Space();
@@ -784,17 +809,6 @@ public class PlatformBuilder : EditorWindow
 		{
 			EditorGUILayout.HelpBox("Custom keystore is required for Google Play. Debug-signed builds cannot be uploaded.", MessageType.Warning);
 		}
-		
-		// Versioning
-		EditorGUILayout.Space();
-		GUILayout.Label("Versioning", EditorStyles.boldLabel);
-		PlayerSettings.bundleVersion = EditorGUILayout.TextField("Version Name", PlayerSettings.bundleVersion);
-		PlayerSettings.Android.bundleVersionCode = EditorGUILayout.IntField("Version Code", PlayerSettings.Android.bundleVersionCode);
-		settings.autoIncrementVersionCode = EditorGUILayout.Toggle("Auto-increment on Build", settings.autoIncrementVersionCode);
-		if (settings.autoIncrementVersionCode)
-			EditorGUILayout.HelpBox($"Next build will be Version Code {PlayerSettings.Android.bundleVersionCode + 1}. A failed build keeps the current code.", MessageType.Info);
-		else
-			EditorGUILayout.HelpBox("Version Code must be incremented with each upload to Google Play, and most device managers (MDM) only push an update with a higher code.", MessageType.Info);
 		
 		// Package Identification
 		EditorGUILayout.Space();

@@ -2,6 +2,9 @@
 
 One entry per commit, written by `.githooks/post-commit`. Versions are date-based: `YYYYMMDD.N.0` is the N+1th release of that day (UTC).
 
+## [20261003.1.0] - 2026-10-03
+- fix: show Versioning section for Android APK builds, not only AAB
+
 ## [20261003.0.0] - 2026-10-03
 - feat: auto version bump + changelog per commit, Check for Updates window
 
