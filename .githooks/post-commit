@@ -1,13 +1,18 @@
 #!/bin/sh
-# After every commit: bump package.json to the next date-based version
-# (YYYYMMDD.N.0) and record the commit title in CHANGELOG.md, then fold both
+# After every commit: bump the semver in package.json from the commit title
+# (conventional commits) and record the title in CHANGELOG.md, then fold both
 # into the commit that was just made. Unity's Package Manager shows that
 # version, and its "Changelog" link opens CHANGELOG.md.
 #
+#   feat!: / fix!: / "BREAKING CHANGE" in the message  -> major  (1.4.2 -> 2.0.0)
+#   feat:                                              -> minor  (1.4.2 -> 1.5.0)
+#   anything else (fix:, chore:, ...)                  -> patch  (1.4.2 -> 1.4.3)
+#
 # Enable once per clone:  git config core.hooksPath .githooks
+# Skip for one commit:    COLDSNAP_SKIP_BUMP=1 git commit ...
 
-# Our own amend below re-runs this hook.
-[ -n "$COLDSNAP_BUMPING" ] && exit 0
+# Also guards our own amend below, which re-runs this hook.
+[ -n "$COLDSNAP_SKIP_BUMP" ] && exit 0
 
 gitdir=$(git rev-parse --git-dir) || exit 0
 # Leave rebases, merges, cherry-picks and reverts alone.
@@ -32,14 +37,24 @@ if ! git diff --quiet -- package.json CHANGELOG.md; then
 fi
 
 current=$(sed -n 's/^[[:space:]]*"version":[[:space:]]*"\([^"]*\)".*/\1/p' package.json | head -n 1)
-today=$(date -u +%Y%m%d)
-major=${current%%.*}
-rest=${current#*.}
+core=${current%%-*} # drop any pre-release label
+major=${core%%.*}
+rest=${core#*.}
 minor=${rest%%.*}
-if [ "$major" = "$today" ]; then
-	new="$today.$((minor + 1)).0"
+patch=${rest#*.}
+case "$major$minor$patch" in
+	'' | *[!0-9]*)
+		echo "post-commit: package.json version '$current' isn't MAJOR.MINOR.PATCH, not bumped." >&2
+		exit 0 ;;
+esac
+
+title=$(git log -1 --format=%s)
+if git log -1 --format=%B | grep -q 'BREAKING CHANGE' || printf '%s' "$title" | grep -qE '^[a-zA-Z]+(\([^)]*\))?!:'; then
+	new="$((major + 1)).0.0"
+elif printf '%s' "$title" | grep -qE '^feat(\([^)]*\))?:'; then
+	new="$major.$((minor + 1)).0"
 else
-	new="$today.0.0"
+	new="$major.$minor.$((patch + 1))"
 fi
 
 sed -i "s/^\([[:space:]]*\"version\":[[:space:]]*\"\)[^\"]*\"/\1$new\"/" package.json
@@ -48,7 +63,7 @@ if [ ! -f CHANGELOG.md ]; then
 	printf '# Changelog\n\nOne entry per commit, written by `.githooks/post-commit`.\n' > CHANGELOG.md
 fi
 HEADING="## [$new] - $(date -u +%Y-%m-%d)" \
-TITLE="- $(git log -1 --format=%s)" \
+TITLE="- $title" \
 awk '
 	!done && /^## / { print ENVIRON["HEADING"]; print ENVIRON["TITLE"]; print ""; done = 1 }
 	{ print }
@@ -56,5 +71,5 @@ awk '
 ' CHANGELOG.md > CHANGELOG.md.tmp && mv CHANGELOG.md.tmp CHANGELOG.md
 
 git add package.json CHANGELOG.md
-COLDSNAP_BUMPING=1 git commit --amend --no-edit --no-verify -q
+COLDSNAP_SKIP_BUMP=1 git commit --amend --no-edit --no-verify -q
 echo "post-commit: ColdSnap Utilities $current -> $new"

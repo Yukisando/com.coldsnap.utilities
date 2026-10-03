@@ -57,12 +57,15 @@ Most of the package is editor-only and lives under `Editor/`, which means those 
 
 Unity Package Manager only treats this package as an update when the package source changes revision and exposes a newer package version.
 
-This package now uses a date-based semver scheme:
+The package uses standard semantic versioning (`MAJOR.MINOR.PATCH`), bumped automatically on every commit from the commit title ([conventional commits](https://www.conventionalcommits.org)):
 
-- `20260409.0.0`: first release on April 9, 2026
-- `20260409.1.0`: second release on the same day
+| Commit title | Bump | Example |
+|---|---|---|
+| `fix:`, `chore:`, `docs:`, anything else | patch | 1.4.2 -> 1.4.3 |
+| `feat:` (or `feat(scope):`) | minor | 1.4.2 -> 1.5.0 |
+| `feat!:`, `fix!:`, or `BREAKING CHANGE` in the message | major | 1.4.2 -> 2.0.0 |
 
-Every commit bumps the version automatically. The versioned hook `.githooks/post-commit` sets `package.json` to the next date-based version, adds the commit title to `CHANGELOG.md` (opened by the **Changelog** link in Package Manager), and folds both into the same commit. It skips amends, merges, rebases and cherry-picks.
+The versioned hook `.githooks/post-commit` writes the new version to `package.json`, adds the commit title to `CHANGELOG.md` (opened by the **Changelog** link in Package Manager), and folds both into the same commit. It skips amends, merges, rebases and cherry-picks.
 
 Enable it once per clone (git never pushes hook settings):
 
@@ -70,10 +73,14 @@ Enable it once per clone (git never pushes hook settings):
 git config core.hooksPath .githooks
 ```
 
-Use `tools/Bump-PackageVersion.ps1` only for a manual bump (for example a pre-release label):
+To set a version by hand (a specific part or a pre-release label), run the script, then commit with the hook disabled for that commit:
 
 ```powershell
-./tools/Bump-PackageVersion.ps1 -PreReleaseLabel preview
+./tools/Bump-PackageVersion.ps1 -Part minor -PreReleaseLabel preview
+```
+
+```bash
+COLDSNAP_SKIP_BUMP=1 git commit -am "chore: release 1.5.0-preview"
 ```
 
 ### Checking you're on the latest version

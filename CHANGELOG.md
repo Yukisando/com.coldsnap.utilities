@@ -1,6 +1,9 @@
 # Changelog
 
-One entry per commit, written by `.githooks/post-commit`. Versions are date-based: `YYYYMMDD.N.0` is the N+1th release of that day (UTC).
+One entry per commit, written by `.githooks/post-commit`. Versions follow semver: `feat:` bumps the minor, `feat!:`/`BREAKING CHANGE` the major, everything else the patch.
+
+## [1.0.0] - 2026-10-03
+- chore: switch to semantic versioning (MAJOR.MINOR.PATCH) bumped from conventional commit titles; date-based versions below are the old scheme
 
 ## [20261003.1.0] - 2026-10-03
 - fix: show Versioning section for Android APK builds, not only AAB
