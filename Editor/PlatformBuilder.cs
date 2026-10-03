@@ -67,6 +67,8 @@ public class PlatformBuilderSettings
 	public bool useCustomAppName = false;
 	public bool forceLowercase = false;
 	public string buildFolderPath = "";
+	// Android/AAB: raise the Version Code by 1 before each build (rolled back if the build fails)
+	public bool autoIncrementVersionCode = true;
 	// New: List of ignored scene paths
 	public List<string> ignoredScenePaths = new List<string>();
 }
@@ -788,7 +790,11 @@ public class PlatformBuilder : EditorWindow
 		GUILayout.Label("Versioning", EditorStyles.boldLabel);
 		PlayerSettings.bundleVersion = EditorGUILayout.TextField("Version Name", PlayerSettings.bundleVersion);
 		PlayerSettings.Android.bundleVersionCode = EditorGUILayout.IntField("Version Code", PlayerSettings.Android.bundleVersionCode);
-		EditorGUILayout.HelpBox("Version Code must be incremented with each upload to Google Play.", MessageType.Info);
+		settings.autoIncrementVersionCode = EditorGUILayout.Toggle("Auto-increment on Build", settings.autoIncrementVersionCode);
+		if (settings.autoIncrementVersionCode)
+			EditorGUILayout.HelpBox($"Next build will be Version Code {PlayerSettings.Android.bundleVersionCode + 1}. A failed build keeps the current code.", MessageType.Info);
+		else
+			EditorGUILayout.HelpBox("Version Code must be incremented with each upload to Google Play, and most device managers (MDM) only push an update with a higher code.", MessageType.Info);
 		
 		// Package Identification
 		EditorGUILayout.Space();
@@ -1283,6 +1289,18 @@ public class PlatformBuilder : EditorWindow
 			}
 		}
 
+		// Bump the Version Code so the new APK/AAB installs as an update over the
+		// previous one. Rolled back below if the build doesn't succeed.
+		bool isAndroidBuild = settings.selectedPlatform == BuildPlatform.Android || settings.selectedPlatform == BuildPlatform.AAB;
+		int previousVersionCode = PlayerSettings.Android.bundleVersionCode;
+		bool versionCodeBumped = false;
+		if (isAndroidBuild && settings.autoIncrementVersionCode)
+		{
+			PlayerSettings.Android.bundleVersionCode = previousVersionCode + 1;
+			versionCodeBumped = true;
+			Debug.Log($"Version Code bumped {previousVersionCode} -> {PlayerSettings.Android.bundleVersionCode}");
+		}
+
 		BuildReport report = null;
 		BuildSummary summary = default(BuildSummary);
 		try
@@ -1295,6 +1313,17 @@ public class PlatformBuilder : EditorWindow
 		}
 		finally
 		{
+			// A failed/cancelled build must not burn a version code
+			if (versionCodeBumped)
+			{
+				if (summary.result != BuildResult.Succeeded)
+				{
+					PlayerSettings.Android.bundleVersionCode = previousVersionCode;
+					Debug.Log($"Build did not succeed; Version Code restored to {previousVersionCode}");
+				}
+				AssetDatabase.SaveAssets(); // persist ProjectSettings.asset
+			}
+
 			// Restore excluded streaming assets regardless of build outcome
 			foreach (var (src, dst) in movedFiles)
 			{
