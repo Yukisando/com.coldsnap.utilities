@@ -2,6 +2,9 @@
 
 One entry per commit, written by `.githooks/post-commit`. Versions follow semver: `feat:` bumps the minor, `feat!:`/`BREAKING CHANGE` the major, everything else the patch.
 
+## [1.1.0] - 2026-10-10
+- feat: add ShiftPlayReloadDomain to manage Play Mode settings with domain reload control
+
 ## [1.0.0] - 2026-10-03
 - chore: switch to semantic versioning (MAJOR.MINOR.PATCH) bumped from conventional commit titles; date-based versions below are the old scheme
 
