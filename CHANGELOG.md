@@ -2,6 +2,9 @@
 
 One entry per commit, written by `.githooks/post-commit`. Versions follow semver: `feat:` bumps the minor, `feat!:`/`BREAKING CHANGE` the major, everything else the patch.
 
+## [1.2.0] - 2026-10-12
+- feat: add dark title bar and menus that follow the editor skin
+
 ## [1.1.0] - 2026-10-10
 - feat: add ShiftPlayReloadDomain to manage Play Mode settings with domain reload control
 

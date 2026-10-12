@@ -15,6 +15,7 @@ The package is aimed at teams that want focused utilities without adopting a lar
 - `Auto Group`: wrap the current top-level selection in a new parent object.
 - `Center Pivot To Mesh CoM`: move a mesh pivot to its area-weighted center of mass while keeping the object visually in place.
 - `Toggle Teleport Player On Play`: move a `Player` object to the Scene view camera when entering Play Mode, then restore it when returning to Edit Mode.
+- `Dark Title Bar and Menus` (Windows 10 1903+ / 11): dark title bars, menu bar, context menus and native dialogs whenever the editor uses the Dark theme; switches back when you change to Light. On by default; untick it in the menu to turn it off. A C# port of [UnityEditor-DarkMode](https://github.com/0x7c13/UnityEditor-DarkMode) (MIT) that can be toggled at runtime — remove that mod's `UnityEditorDarkMode.dll` from the project if you had it installed.
 - `Auto Apply Android Keystore Passwords`: optionally fill Android signing passwords at editor startup for local workflows that always use the same keystore.
 
 ### Runtime helpers
