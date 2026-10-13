@@ -20,7 +20,8 @@ public enum BuildPlatform
 	MacOS,
 	Android,
 	AAB,
-	WebGL
+	WebGL,
+	iOS
 }
 
 [System.Serializable]
@@ -67,8 +68,17 @@ public class PlatformBuilderSettings
 	public bool useCustomAppName = false;
 	public bool forceLowercase = false;
 	public string buildFolderPath = "";
-	// Android/AAB: raise the Version Code by 1 before each build (rolled back if the build fails)
+	// Android/AAB: raise the Version Code by 1 before each build (rolled back if the build fails).
+	// iOS: the same for the Build Number.
 	public bool autoIncrementVersionCode = true;
+	// iOS: use the Android Version Code as the Build Number, so one number names a release on both stores
+	public bool iosBuildNumberFollowsAndroid = true;
+	// iOS Info.plist (PlatformBuilderIosPostProcess): the app only uses exempt encryption (HTTPS),
+	// so App Store Connect stops asking the export compliance question on every upload
+	public bool iosDeclareNoEncryption = true;
+	// iOS Info.plist NSUserTrackingUsageDescription; empty = not written. Required once an SDK
+	// (ads, attribution) shows Apple's tracking prompt.
+	public string iosTrackingUsageDescription = "";
 	// New: List of ignored scene paths
 	public List<string> ignoredScenePaths = new List<string>();
 }
@@ -146,6 +156,11 @@ public class PlatformBuilder : EditorWindow
 		{
 			height += 400f; // Google Play settings
 		}
+
+		if (settings.selectedPlatform == BuildPlatform.iOS)
+		{
+			height += 420f; // Versioning + App Store settings
+		}
 		
 		minSize = new Vector2(width, height);
 		maxSize = new Vector2(width + 100f, height + 200f);
@@ -173,6 +188,22 @@ public class PlatformBuilder : EditorWindow
 		}
 	}
 
+	// The saved settings as the build pipeline sees them, window open or not
+	internal static PlatformBuilderSettings ReadSettingsFile()
+	{
+		if (!File.Exists(SettingsFilePath)) return null;
+
+		try
+		{
+			return JsonUtility.FromJson<PlatformBuilderSettings>(File.ReadAllText(SettingsFilePath));
+		}
+		catch (Exception e)
+		{
+			Debug.LogWarning($"Failed to load PlatformBuilder settings from file: {e.Message}");
+			return null;
+		}
+	}
+
 	void LoadSettings()
 	{
 		if (settings == null)
@@ -183,20 +214,7 @@ public class PlatformBuilder : EditorWindow
 		// Try to load from file
 		if (File.Exists(SettingsFilePath))
 		{
-			try
-			{
-				string json = File.ReadAllText(SettingsFilePath);
-				var loadedSettings = JsonUtility.FromJson<PlatformBuilderSettings>(json);
-				if (loadedSettings != null)
-				{
-					settings = loadedSettings;
-				}
-			}
-			catch (Exception e)
-			{
-				Debug.LogWarning($"Failed to load PlatformBuilder settings from file: {e.Message}");
-				settings = new PlatformBuilderSettings();
-			}
+			settings = ReadSettingsFile() ?? new PlatformBuilderSettings();
 		}
 		else
 		{
@@ -569,6 +587,12 @@ public class PlatformBuilder : EditorWindow
 		{
 			DrawAABSettings();
 		}
+
+		if (settings.selectedPlatform == BuildPlatform.iOS)
+		{
+			DrawIosVersioning();
+			DrawIosSettings();
+		}
 		
 		EditorGUILayout.Space();
 
@@ -594,7 +618,8 @@ public class PlatformBuilder : EditorWindow
 
 		// Build buttons
 		GUI.enabled = !_isBuildingOrZipping;
-		string buildButtonLabel = settings.selectedPlatform == BuildPlatform.AAB ? "Build AAB for Google Play" : "Build";
+		string buildButtonLabel = settings.selectedPlatform == BuildPlatform.AAB ? "Build AAB for Google Play"
+			: settings.selectedPlatform == BuildPlatform.iOS ? "Export Xcode Project" : "Build";
 		EditorGUILayout.BeginHorizontal();
 		if (GUILayout.Button(buildButtonLabel, GUILayout.Height(30)))
 		{
@@ -605,6 +630,19 @@ public class PlatformBuilder : EditorWindow
 			BuildForPlatform(true);
 		}
 		EditorGUILayout.EndHorizontal();
+
+		if (settings.selectedPlatform == BuildPlatform.iOS)
+		{
+			bool canSend = Directory.Exists(IosExportPath) && File.Exists(Path.Combine(IosExportPath, "Info.plist"));
+			GUI.enabled = !_isBuildingOrZipping && canSend;
+			if (GUILayout.Button("Send to TestFlight", GUILayout.Height(30)))
+			{
+				SendToTestFlight();
+			}
+			GUI.enabled = true;
+			if (!canSend)
+				EditorGUILayout.HelpBox("Export the Xcode project first, then send it to TestFlight.", MessageType.None);
+		}
 		GUI.enabled = true;
 	}
 	
@@ -874,6 +912,143 @@ public class PlatformBuilder : EditorWindow
 		EditorGUILayout.EndScrollView();
 	}
 	
+	// The Xcode project folder an iOS export writes: <build folder>/iOS
+	static string IosExportPath => string.IsNullOrEmpty(settings?.buildFolderPath)
+		? ""
+		: Path.Combine(settings.buildFolderPath, "iOS");
+
+	void DrawIosVersioning()
+	{
+		EditorGUILayout.Space();
+		GUILayout.Label("Versioning", EditorStyles.boldLabel);
+		PlayerSettings.bundleVersion = EditorGUILayout.TextField("Version", PlayerSettings.bundleVersion);
+
+		bool follows = EditorGUILayout.Toggle(new GUIContent("Build Number = Android Code",
+			"Use the Android Version Code as the iOS Build Number, so one number names a release on both stores"),
+			settings.iosBuildNumberFollowsAndroid);
+		if (follows != settings.iosBuildNumberFollowsAndroid)
+		{
+			settings.iosBuildNumberFollowsAndroid = follows;
+			SaveSettings();
+		}
+
+		if (settings.iosBuildNumberFollowsAndroid)
+		{
+			PlayerSettings.Android.bundleVersionCode = EditorGUILayout.IntField("Build Number (Android code)", PlayerSettings.Android.bundleVersionCode);
+		}
+		else
+		{
+			PlayerSettings.iOS.buildNumber = EditorGUILayout.TextField("Build Number", PlayerSettings.iOS.buildNumber);
+		}
+
+		bool autoIncrement = EditorGUILayout.Toggle("Auto-increment on Build", settings.autoIncrementVersionCode);
+		if (autoIncrement != settings.autoIncrementVersionCode)
+		{
+			settings.autoIncrementVersionCode = autoIncrement;
+			SaveSettings();
+		}
+		EditorGUILayout.HelpBox("App Store Connect takes each Build Number once per version. A failed export keeps the current number.", MessageType.Info);
+	}
+
+	void DrawIosSettings()
+	{
+		EditorGUILayout.Space();
+		GUILayout.Label("── App Store Settings ──", EditorStyles.boldLabel);
+
+		if (!BuildPipeline.IsBuildTargetSupported(BuildTargetGroup.iOS, BuildTarget.iOS))
+		{
+			EditorGUILayout.HelpBox("iOS Build Support is not installed for this Editor. Unity Hub > Installs > this version > Add modules > iOS Build Support.", MessageType.Error);
+		}
+		else if (EditorUserBuildSettings.activeBuildTarget != BuildTarget.iOS)
+		{
+			EditorGUILayout.HelpBox("Switch the platform to iOS before exporting: an export made from another platform skips every iOS build step of the project and its SDKs (SKAdNetwork ids, Info.plist keys).", MessageType.Warning);
+		}
+
+		var ios = UnityEditor.Build.NamedBuildTarget.iOS;
+		string bundleId = PlayerSettings.GetApplicationIdentifier(ios);
+		string newBundleId = EditorGUILayout.TextField("Bundle ID", bundleId);
+		if (newBundleId != bundleId)
+			PlayerSettings.SetApplicationIdentifier(ios, newBundleId);
+
+		PlayerSettings.iOS.appleDeveloperTeamID = EditorGUILayout.TextField(new GUIContent("Team ID", "developer.apple.com > Membership"), PlayerSettings.iOS.appleDeveloperTeamID);
+		PlayerSettings.iOS.targetDevice = (iOSTargetDevice)EditorGUILayout.EnumPopup(new GUIContent("Devices", "iPhone Only spares the 13\" iPad screenshots App Store Connect otherwise requires"), PlayerSettings.iOS.targetDevice);
+		PlayerSettings.iOS.targetOSVersionString = EditorGUILayout.TextField("Minimum iOS", PlayerSettings.iOS.targetOSVersionString);
+
+		EditorGUILayout.Space();
+		GUILayout.Label("Info.plist", EditorStyles.boldLabel);
+		bool noEncryption = EditorGUILayout.Toggle(new GUIContent("No Custom Encryption",
+			"Writes ITSAppUsesNonExemptEncryption = false: the app only uses HTTPS / system encryption"), settings.iosDeclareNoEncryption);
+		if (noEncryption != settings.iosDeclareNoEncryption)
+		{
+			settings.iosDeclareNoEncryption = noEncryption;
+			SaveSettings();
+		}
+
+		EditorGUILayout.LabelField(new GUIContent("Tracking Prompt Text", "NSUserTrackingUsageDescription. Needed when an SDK shows Apple's tracking prompt (ads, attribution). Empty = not written."));
+		string tracking = EditorGUILayout.TextArea(settings.iosTrackingUsageDescription ?? "", GUILayout.MinHeight(36));
+		if (tracking != settings.iosTrackingUsageDescription)
+		{
+			settings.iosTrackingUsageDescription = tracking;
+			SaveSettings();
+		}
+
+		EditorGUILayout.HelpBox("Windows cannot sign or upload an iOS app. Send to TestFlight runs flutter-ship's `fastlane ios unity_release`: the export goes to a macOS GitHub runner, which signs it with the vault keys and uploads it.", MessageType.Info);
+	}
+
+	bool ValidateIosBuild()
+	{
+		if (!BuildPipeline.IsBuildTargetSupported(BuildTargetGroup.iOS, BuildTarget.iOS))
+		{
+			EditorUtility.DisplayDialog("iOS Build Support Missing",
+				"Install iOS Build Support for this Editor (Unity Hub > Installs > Add modules), then export again.", "OK");
+			return false;
+		}
+
+		// Editor scripts are compiled per active platform: the project's and the SDKs' iOS
+		// post-process steps only exist while iOS is the active platform
+		if (EditorUserBuildSettings.activeBuildTarget != BuildTarget.iOS)
+		{
+			if (EditorUtility.DisplayDialog("Switch to iOS First",
+				"The active platform is " + EditorUserBuildSettings.activeBuildTarget + ". An iOS export made from it skips every iOS build step (SKAdNetwork ids, Info.plist keys).\n\nSwitch to iOS now? Export again once Unity has reimported.",
+				"Switch to iOS", "Cancel"))
+			{
+				EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.iOS, BuildTarget.iOS);
+			}
+			return false;
+		}
+
+		var ios = UnityEditor.Build.NamedBuildTarget.iOS;
+		string bundleId = PlayerSettings.GetApplicationIdentifier(ios);
+		if (string.IsNullOrEmpty(bundleId) || bundleId == "com.Company.ProductName")
+		{
+			EditorUtility.DisplayDialog("iOS Export", "Set the Bundle ID to the one registered in App Store Connect.", "OK");
+			return false;
+		}
+
+		return true;
+	}
+
+	// The upload half lives in flutter-ship (fastlane/ship.yml + Gemfile at the project root);
+	// it runs in a console window so its progress and errors stay readable.
+	void SendToTestFlight()
+	{
+		string root = Directory.GetParent(Application.dataPath).FullName;
+		if (!File.Exists(Path.Combine(root, "fastlane", "ship.yml")) || !File.Exists(Path.Combine(root, "Gemfile")))
+		{
+			EditorUtility.DisplayDialog("Send to TestFlight",
+				"This project has no flutter-ship setup (fastlane/ship.yml and a Gemfile at the project root). See flutter-ship's ship-ios skill, \"Unity apps\".", "OK");
+			return;
+		}
+
+		string xcode = IosExportPath;
+		string command = $"bundle exec fastlane ios unity_release xcode:\"{xcode}\"";
+		var start = Application.platform == RuntimePlatform.WindowsEditor
+			? new ProcessStartInfo("cmd.exe", $"/k {command}") { WorkingDirectory = root, UseShellExecute = true }
+			: new ProcessStartInfo("/bin/sh", $"-c '{command}; exec $SHELL'") { WorkingDirectory = root, UseShellExecute = true };
+		Process.Start(start);
+		Debug.Log($"[PlatformBuilder] Started: {command}");
+	}
+
 	bool IsSceneListSynced()
 	{
 		var selected = allScenes
@@ -1033,6 +1208,10 @@ public class PlatformBuilder : EditorWindow
 				buildTarget = BuildTarget.WebGL;
 				buildTargetGroup = BuildTargetGroup.WebGL;
 				break;
+			case BuildPlatform.iOS:
+				buildTarget = BuildTarget.iOS;
+				buildTargetGroup = BuildTargetGroup.iOS;
+				break;
 			default:
 				return;
 		}
@@ -1182,6 +1361,15 @@ public class PlatformBuilder : EditorWindow
 				zipSource = webglFolder;
 				zipIsDirectory = true;
 				break;
+
+			case BuildPlatform.iOS:
+				buildTarget = BuildTarget.iOS;
+				platformName = "iOS";
+				// Build/iOS/ is the Xcode project (one per app: Send to TestFlight reads it)
+				buildPath = IosExportPath;
+				zipSource = buildPath;
+				zipIsDirectory = true;
+				break;
 		}
 		
 		// Get scenes to build
@@ -1251,6 +1439,9 @@ public class PlatformBuilder : EditorWindow
 				return;
 			}
 		}
+
+		if (settings.selectedPlatform == BuildPlatform.iOS && !ValidateIosBuild())
+			return;
 		
 		if (settings.autoRunPlayer)
 		{
@@ -1306,13 +1497,27 @@ public class PlatformBuilder : EditorWindow
 		// Bump the Version Code so the new APK/AAB installs as an update over the
 		// previous one. Rolled back below if the build doesn't succeed.
 		bool isAndroidBuild = settings.selectedPlatform == BuildPlatform.Android || settings.selectedPlatform == BuildPlatform.AAB;
+		bool isIosBuild = settings.selectedPlatform == BuildPlatform.iOS;
+		bool iosFollowsAndroid = isIosBuild && settings.iosBuildNumberFollowsAndroid;
 		int previousVersionCode = PlayerSettings.Android.bundleVersionCode;
+		string previousIosBuildNumber = PlayerSettings.iOS.buildNumber;
 		bool versionCodeBumped = false;
-		if (isAndroidBuild && settings.autoIncrementVersionCode)
+		if ((isAndroidBuild || iosFollowsAndroid) && settings.autoIncrementVersionCode)
 		{
 			PlayerSettings.Android.bundleVersionCode = previousVersionCode + 1;
 			versionCodeBumped = true;
 			Debug.Log($"Version Code bumped {previousVersionCode} -> {PlayerSettings.Android.bundleVersionCode}");
+		}
+		if (iosFollowsAndroid)
+		{
+			PlayerSettings.iOS.buildNumber = PlayerSettings.Android.bundleVersionCode.ToString();
+			versionCodeBumped = true;
+		}
+		else if (isIosBuild && settings.autoIncrementVersionCode && int.TryParse(previousIosBuildNumber, out int iosBuild))
+		{
+			PlayerSettings.iOS.buildNumber = (iosBuild + 1).ToString();
+			versionCodeBumped = true;
+			Debug.Log($"Build Number bumped {previousIosBuildNumber} -> {PlayerSettings.iOS.buildNumber}");
 		}
 
 		BuildReport report = null;
@@ -1333,6 +1538,7 @@ public class PlatformBuilder : EditorWindow
 				if (summary.result != BuildResult.Succeeded)
 				{
 					PlayerSettings.Android.bundleVersionCode = previousVersionCode;
+					PlayerSettings.iOS.buildNumber = previousIosBuildNumber;
 					Debug.Log($"Build did not succeed; Version Code restored to {previousVersionCode}");
 				}
 				AssetDatabase.SaveAssets(); // persist ProjectSettings.asset
@@ -1427,6 +1633,14 @@ public class PlatformBuilder : EditorWindow
 					}
 				}
 			}
+			else if (settings.selectedPlatform == BuildPlatform.iOS)
+			{
+				string message = $"Xcode project exported.\n\nPath: {summary.outputPath}\n";
+				message += $"Version: {PlayerSettings.bundleVersion} ({PlayerSettings.iOS.buildNumber})\n\n";
+				message += "Send to TestFlight compiles, signs and uploads it on a macOS runner.";
+				if (EditorUtility.DisplayDialog("Xcode Project Exported", message, "Send to TestFlight", "Close"))
+					SendToTestFlight();
+			}
 			// For Android APK, provide additional information
 			else if (settings.selectedPlatform == BuildPlatform.Android)
 			{
@@ -1498,7 +1712,8 @@ public class PlatformBuilder : EditorWindow
 
 		if (isDirectory)
 		{
-			if (settings.selectedPlatform == BuildPlatform.MacOS)
+			// The Xcode project's build scripts need their execute bit on a Mac, like the .app
+			if (settings.selectedPlatform == BuildPlatform.MacOS || settings.selectedPlatform == BuildPlatform.iOS)
 				ZipMacOSWithUnixPermissions(source, zipFilePath);
 			else
 				ZipFile.CreateFromDirectory(source, zipFilePath, System.IO.Compression.CompressionLevel.Optimal, false);

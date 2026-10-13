@@ -8,7 +8,7 @@ The package is aimed at teams that want focused utilities without adopting a lar
 
 ### Editor tools
 
-- `Platform Builder`: build Windows, macOS, Android APK, Android App Bundle, and WebGL targets from one editor window with saved scene selections and build preferences.
+- `Platform Builder`: build Windows, macOS, Android APK, Android App Bundle, WebGL and iOS (Xcode project) targets from one editor window with saved scene selections and build preferences. iOS adds App Store settings (bundle id, team, devices, Info.plist keys) and a Send to TestFlight button.
 - `Scene Quick Open`: search and open scenes found under `Assets` without digging through the Project view.
 - `Git Commands`: open a simple commit-and-push window from inside the editor.
 - `Check for Updates`: compare the installed package commit/version with the latest on GitHub and update in one click.
@@ -35,6 +35,8 @@ The package is aimed at teams that want focused utilities without adopting a lar
 After adding the package to a Unity project, editor utilities appear under the `ColdSnap` menu.
 
 Use `ColdSnap/Platform Builder` when you want repeatable build settings and fast target switching.
+
+For the App Store, pick `iOS` in Platform Builder and press `Switch Platform` first: Unity compiles editor scripts per active platform, so an iOS export made while Android is active silently skips every iOS post-process step of the project and its SDKs (SKAdNetwork ids, Info.plist keys). `Export Xcode Project` writes `<build folder>/iOS`; the Build Number can follow the Android Version Code so one number names a release on both stores. The App Store settings also write `ITSAppUsesNonExemptEncryption` and, when filled in, the tracking prompt text (`NSUserTrackingUsageDescription`) into every iOS export, however it was started. Windows cannot sign an iOS app: `Send to TestFlight` runs [flutter-ship](https://github.com/Yukisando/flutter-ship)'s `bundle exec fastlane ios unity_release`, which hands the export to a macOS GitHub runner that signs it with the vault keys and uploads it (needs `fastlane/ship.yml`, a Gemfile and the `ios-release.yml` workflow from flutter-ship's Unity template).
 
 Use `ColdSnap/Scenes/Quick Open` when you need to jump between scenes quickly during development.
 
