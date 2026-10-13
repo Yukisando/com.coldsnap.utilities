@@ -2,6 +2,9 @@
 
 One entry per commit, written by `.githooks/post-commit`. Versions follow semver: `feat:` bumps the minor, `feat!:`/`BREAKING CHANGE` the major, everything else the patch.
 
+## [1.4.0] - 2026-10-13
+- feat: replace Shift+Play with a play-with-domain-reload toolbar button
+
 ## [1.3.0] - 2026-10-13
 - feat: iOS target in Platform Builder - Xcode export, App Store settings, Info.plist keys, Send to TestFlight
 
